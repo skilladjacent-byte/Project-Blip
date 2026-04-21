@@ -1,0 +1,4151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Dot Survival — Hackathon</title>
+<style>
+  :root {
+    --bg: #0d0f12;
+    --panel: #15181d;
+    --border: #2a2f38;
+    --text: #e7ecf1;
+    --muted: #7b8491;
+    --accent: #4ade80;
+    --danger: #ff8c3c;
+    --gold: #fbbf24;
+  }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    user-select: none;
+    overflow: hidden;
+  }
+  #hud {
+    font-variant-numeric: tabular-nums;
+    font-size: 28px;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+    color: var(--text);
+    visibility: hidden;
+    display: flex;
+    gap: 32px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  #hud.visible { visibility: visible; }
+  #hud .label {
+    color: var(--muted);
+    font-size: 14px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-right: 10px;
+  }
+  #hud .timer.low { color: var(--danger); }
+  #kills.ready { color: #ef4444; }
+  /* HUD group toggling: normal vs boss mode */
+  #hud .hud-boss { display: none; }
+  #hud.mode-boss .hud-normal { display: none; }
+  #hud.mode-boss .hud-boss { display: inline-flex; align-items: center; gap: 10px; }
+  .boss-hp-bar {
+    display: inline-block;
+    width: 200px;
+    height: 10px;
+    background: rgba(185, 28, 28, 0.18);
+    border: 1px solid rgba(185, 28, 28, 0.4);
+    border-radius: 999px;
+    overflow: hidden;
+    vertical-align: middle;
+  }
+  #boss-hp-fill {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, #dc2626, #b91c1c);
+    transition: width 120ms ease-out;
+  }
+  #boss-hp-text {
+    font-size: 20px;
+    color: #fca5a5;
+  }
+  #tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .tag-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    font-weight: 600;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    line-height: 1;
+  }
+  .tag-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .tag-count {
+    color: rgba(255,255,255,0.55);
+    font-weight: 500;
+    font-size: 10px;
+  }
+  #arena-wrap { position: relative; }
+  canvas {
+    background: var(--panel);
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    display: block;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    cursor: crosshair;
+  }
+
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    background: rgba(13, 15, 18, 0.88);
+    border-radius: 4px;
+    backdrop-filter: blur(4px);
+    padding: 32px;
+    box-sizing: border-box;
+  }
+  .screen.visible { display: flex; }
+
+  .title {
+    margin: 0 0 8px;
+    font-size: 44px;
+    letter-spacing: 4px;
+    color: var(--text);
+    text-transform: uppercase;
+  }
+  .title.accent { color: var(--accent); }
+  .title.danger { color: var(--danger); }
+  .title.gold   { color: var(--gold); }
+  .subtitle {
+    color: var(--muted);
+    margin: 0 0 24px;
+    letter-spacing: 2px;
+    font-size: 13px;
+    text-transform: uppercase;
+  }
+
+  .menu-btn {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 12px 32px;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+    min-width: 220px;
+    margin: 5px 0;
+    font-family: inherit;
+  }
+  .menu-btn:hover {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+    transform: translateY(-1px);
+  }
+  .menu-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+    background: transparent;
+    color: var(--text);
+    border-color: var(--border);
+  }
+  .menu-btn.danger:hover {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: var(--bg);
+  }
+  /* Controller focus — mirrors hover styling.
+     Note: .primary no longer has a "filled" look of its own; the first menu
+     button being auto-focused is what produces the highlight on menu open,
+     so moving focus actually *moves* the highlight (no double-selection). */
+  .menu-btn.focused:not(:disabled) {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+    transform: translateY(-1px);
+    box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.25);
+  }
+  .menu-btn.danger.focused:not(:disabled) {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: var(--bg);
+    box-shadow: 0 0 0 2px rgba(255, 140, 60, 0.25);
+  }
+
+  .final {
+    font-size: 48px;
+    color: var(--text);
+    margin: 8px 0 24px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 4px;
+  }
+
+  .settings-panel {
+    width: 100%;
+    max-width: 380px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    margin: 8px 0 24px;
+  }
+  .setting-row { display: flex; flex-direction: column; gap: 10px; }
+  .setting-label {
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .setting-label .value {
+    float: right;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: none;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: none;
+  }
+
+  /* Leaderboard */
+  .lb-section { width: 100%; max-width: 380px; margin-bottom: 14px; }
+  .lb-section-title {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 8px;
+    text-align: center;
+  }
+  .leaderboard {
+    width: 100%;
+    max-width: 380px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  .lb-row {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    align-items: center;
+    padding: 8px 14px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 16px;
+    letter-spacing: 2px;
+  }
+  .lb-row.empty {
+    color: var(--muted);
+    font-style: italic;
+    letter-spacing: normal;
+  }
+  .lb-row.new {
+    border-color: var(--accent);
+    background: rgba(74, 222, 128, 0.08);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+  .lb-row .rank { color: var(--muted); font-weight: 600; }
+  .lb-row .name {
+    font-weight: 700;
+    letter-spacing: 4px;
+    padding-left: 8px;
+  }
+  .lb-row .score { color: var(--text); }
+  .lb-row:nth-child(1) .rank { color: var(--gold); }
+  .lb-empty-msg {
+    text-align: center;
+    color: var(--muted);
+    padding: 18px 0;
+    font-style: italic;
+    font-size: 13px;
+  }
+
+  /* 2-Player name entry */
+  .name-2p {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 16px;
+    align-items: flex-end;
+  }
+  .name-slot { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .name-label {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .name-input.small {
+    font-size: 36px;
+    letter-spacing: 14px;
+    padding: 8px 0 8px 14px;
+    width: 150px;
+    margin-bottom: 0;
+  }
+
+  /* Name input (arcade-style) */
+  .name-input {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid var(--border);
+    color: var(--accent);
+    font-size: 56px;
+    letter-spacing: 24px;
+    text-align: center;
+    padding: 12px 0 12px 24px;
+    width: 240px;
+    text-transform: uppercase;
+    font-family: "Courier New", monospace;
+    font-weight: 700;
+    outline: none;
+    margin-bottom: 16px;
+    caret-color: var(--accent);
+  }
+  .name-input:focus { border-bottom-color: var(--accent); }
+
+  #hint {
+    margin-top: 12px;
+    color: var(--muted);
+    font-size: 13px;
+    letter-spacing: 1px;
+    text-align: center;
+    max-width: 720px;
+    line-height: 1.6;
+  }
+  #hint .sep { color: var(--border); margin: 0 8px; }
+  #hint .key { color: var(--text); }
+
+  #pad-status {
+    margin-top: 6px;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  #pad-status.connected { color: var(--accent); }
+</style>
+</head>
+<body>
+  <div id="hud">
+    <span class="hud-normal"><span class="label">Lvl</span><span id="level">1</span></span>
+    <span class="hud-normal"><span class="label">Time</span><span id="time" class="timer">60.00</span></span>
+    <span class="hud-normal"><span class="label">Kills</span><span id="kills">0/100</span></span>
+    <span id="tags" class="hud-normal"></span>
+    <span class="hud-boss" id="boss-hud">
+      <span class="label">Boss</span>
+      <span id="boss-hp-text">200 / 200</span>
+      <span class="boss-hp-bar"><span id="boss-hp-fill"></span></span>
+    </span>
+  </div>
+
+  <div id="arena-wrap">
+    <canvas id="game" width="600" height="600"></canvas>
+
+    <div id="screen-main" class="screen visible">
+      <h1 class="title accent">Dot Survival</h1>
+      <p class="subtitle">Survive · Descend · Repeat</p>
+      <button class="menu-btn primary" data-action="start">Start Game</button>
+      <button class="menu-btn" data-action="start-2p">2-Player Game</button>
+      <button class="menu-btn" data-action="start-boss-1p">Boss Gauntlet (1P)</button>
+      <button class="menu-btn" data-action="start-boss-2p">Boss Gauntlet (2P)</button>
+      <button class="menu-btn" data-action="leaderboard">Leaderboard</button>
+      <button class="menu-btn" data-action="settings-main">Settings</button>
+      <button class="menu-btn danger" data-action="exit">Exit Game</button>
+    </div>
+
+    <div id="screen-pause" class="screen">
+      <h1 class="title">Paused</h1>
+      <p class="subtitle">Press ESC to resume</p>
+      <button class="menu-btn primary" data-action="resume">Resume</button>
+      <button class="menu-btn" data-action="settings-pause">Settings</button>
+      <button class="menu-btn" data-action="main-menu">Main Menu</button>
+      <button class="menu-btn danger" data-action="exit">Exit Game</button>
+    </div>
+
+    <div id="screen-settings-main" class="screen">
+      <h1 class="title">Settings</h1>
+      <div class="settings-panel">
+        <div class="setting-row">
+          <label class="setting-label">Music Volume <span class="value" id="vol-value-main">50</span></label>
+          <input type="range" id="vol-main" min="0" max="100" value="50">
+        </div>
+      </div>
+      <button class="menu-btn" data-action="back-main">Back</button>
+    </div>
+
+    <div id="screen-settings-pause" class="screen">
+      <h1 class="title">Settings</h1>
+      <div class="settings-panel">
+        <div class="setting-row">
+          <label class="setting-label">Music Volume <span class="value" id="vol-value-pause">50</span></label>
+          <input type="range" id="vol-pause" min="0" max="100" value="50">
+        </div>
+      </div>
+      <button class="menu-btn" data-action="back-pause">Back</button>
+    </div>
+
+    <div id="screen-leaderboard" class="screen">
+      <h1 class="title">Leaderboard</h1>
+      <div class="lb-section">
+        <p class="lb-section-title">Solo · Top 5</p>
+        <div class="leaderboard" id="leaderboard-list-solo"></div>
+      </div>
+      <div class="lb-section">
+        <p class="lb-section-title">Co-op · Top 5</p>
+        <div class="leaderboard" id="leaderboard-list-coop"></div>
+      </div>
+      <button class="menu-btn" data-action="back-main">Back</button>
+    </div>
+
+    <div id="screen-highscore" class="screen">
+      <h1 class="title gold">New High Score!</h1>
+      <p class="subtitle">You made the top 5</p>
+      <div class="final" id="highScoreLevel">LVL 1</div>
+      <p class="subtitle" style="margin-bottom:8px;">Enter your name</p>
+      <input type="text" id="nameInput" class="name-input" maxlength="4" autocomplete="off" spellcheck="false">
+      <button class="menu-btn primary" id="submitScoreBtn" data-action="submit-score" disabled>Submit</button>
+    </div>
+
+    <div id="screen-highscore-2p" class="screen">
+      <h1 class="title gold">New High Score!</h1>
+      <p class="subtitle">You made the co-op top 5</p>
+      <div class="final" id="highScoreLevel2P">LVL 1</div>
+      <div class="name-2p">
+        <div class="name-slot">
+          <label class="name-label">Player 1</label>
+          <input type="text" id="nameInput1" class="name-input small" maxlength="4" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="name-slot">
+          <label class="name-label">Player 2</label>
+          <input type="text" id="nameInput2" class="name-input small" maxlength="4" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+      <button class="menu-btn primary" id="submitScoreBtn2P" data-action="submit-score-2p" disabled>Submit</button>
+    </div>
+
+    <div id="screen-gameover" class="screen">
+      <h1 class="title danger">You Died</h1>
+      <p class="subtitle">You reached</p>
+      <div class="final" id="finalLevel">LVL 1</div>
+      <button class="menu-btn primary" data-action="play-again">Play Again</button>
+      <button class="menu-btn" data-action="leaderboard">Leaderboard</button>
+      <button class="menu-btn" data-action="main-menu">Main Menu</button>
+    </div>
+
+    <div id="screen-boss-victory" class="screen">
+      <h1 class="title accent">Boss Defeated</h1>
+      <p class="subtitle" id="boss-victory-sub">More bosses coming soon</p>
+      <div class="final" id="bossesDefeated">1 DEFEATED</div>
+      <button class="menu-btn primary" data-action="boss-replay">Play Again</button>
+      <button class="menu-btn" data-action="main-menu">Main Menu</button>
+    </div>
+
+    <div id="screen-boss-gameover" class="screen">
+      <h1 class="title danger">You Died</h1>
+      <p class="subtitle">Bosses Defeated</p>
+      <div class="final" id="bossDeathCount">0</div>
+      <button class="menu-btn primary" data-action="boss-replay">Play Again</button>
+      <button class="menu-btn" data-action="main-menu">Main Menu</button>
+    </div>
+
+    <div id="screen-exit" class="screen">
+      <h1 class="title">Thanks for Playing</h1>
+      <p class="subtitle">You can close this tab, or come back for more</p>
+      <button class="menu-btn primary" data-action="main-menu">Return to Menu</button>
+    </div>
+  </div>
+  <div id="hint">
+    <div>
+      <span class="key">Left Stick</span> / <span class="key">WASD</span> move
+      <span class="sep">·</span>
+      <span class="key">Right Stick</span> aim + auto-fire
+      <span class="sep">·</span>
+      <span class="key">Mouse</span> aim <span class="sep">·</span> <span class="key">Click</span> fire
+    </div>
+    <div style="margin-top:4px">
+      <span class="key">D-pad</span> / <span class="key">Left Stick</span> navigate menus
+      <span class="sep">·</span>
+      <span class="key">A</span> select
+      <span class="sep">·</span>
+      <span class="key">Start</span> / <span class="key">ESC</span> pause
+    </div>
+  </div>
+  <div id="pad-status">No controller detected</div>
+
+<script>
+(() => {
+  // ---------- Palettes / settings ----------
+  const settings = {
+    volume: 0.5,
+    playerColor: '#4ade80', // green
+    enemyColor:  '#ff8c3c', // orange
+  };
+
+  // ---------- Leaderboards (persistent, level-based) ----------
+  const LB_MAX = 5;
+
+  function makeLeaderboard(storageKey, entryValidator) {
+    return {
+      key: storageKey,
+      entries: [],
+      lastAddedIndex: -1,
+      hasStorage: typeof window !== 'undefined' && window.storage,
+      async load() {
+        if (!this.hasStorage) return;
+        try {
+          const res = await window.storage.get(this.key);
+          if (res && res.value) {
+            const parsed = JSON.parse(res.value);
+            if (Array.isArray(parsed)) {
+              this.entries = parsed
+                .filter(entryValidator)
+                .sort((a, b) => b.level - a.level)
+                .slice(0, LB_MAX);
+            }
+          }
+        } catch (e) { /* no prior data */ }
+      },
+      async save() {
+        if (!this.hasStorage) return;
+        try {
+          await window.storage.set(this.key, JSON.stringify(this.entries));
+        } catch (e) {
+          console.error('Leaderboard save failed:', e);
+        }
+      },
+      qualifies(lvl) {
+        if (this.entries.length < LB_MAX) return true;
+        return lvl > this.entries[this.entries.length - 1].level;
+      },
+      async addEntry(entry) {
+        this.entries.push(entry);
+        this.entries.sort((a, b) => b.level - a.level);
+        this.entries = this.entries.slice(0, LB_MAX);
+        this.lastAddedIndex = this.entries.indexOf(entry);
+        await this.save();
+      },
+      clearHighlight() { this.lastAddedIndex = -1; },
+    };
+  }
+
+  const leaderboardSolo = makeLeaderboard(
+    'leaderboard-v2',
+    e => e && typeof e.name === 'string' && typeof e.level === 'number'
+  );
+  const leaderboardCoop = makeLeaderboard(
+    'leaderboard-coop-v1',
+    e => e && typeof e.name1 === 'string' && typeof e.name2 === 'string' && typeof e.level === 'number'
+  );
+
+  function currentLeaderboard() {
+    return numPlayers > 1 ? leaderboardCoop : leaderboardSolo;
+  }
+
+  function renderLeaderboard() {
+    renderLeaderboardInto('leaderboard-list-solo', leaderboardSolo, false);
+    renderLeaderboardInto('leaderboard-list-coop', leaderboardCoop, true);
+  }
+
+  function renderLeaderboardInto(containerId, lb, isCoop) {
+    const list = document.getElementById(containerId);
+    list.innerHTML = '';
+    if (lb.entries.length === 0) {
+      const msg = document.createElement('div');
+      msg.className = 'lb-empty-msg';
+      msg.textContent = 'No scores yet — go set one.';
+      list.appendChild(msg);
+      return;
+    }
+    lb.entries.forEach((e, i) => {
+      const row = document.createElement('div');
+      row.className = 'lb-row' + (i === lb.lastAddedIndex ? ' new' : '');
+      const nameText = isCoop
+        ? `${escapeHtml(e.name1)} &amp; ${escapeHtml(e.name2)}`
+        : escapeHtml(e.name);
+      row.innerHTML = `
+        <span class="rank">${i + 1}</span>
+        <span class="name">${nameText}</span>
+        <span class="score">LVL ${e.level}</span>
+      `;
+      list.appendChild(row);
+    });
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c =>
+      ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])
+    );
+  }
+
+  // ---------- Audio ----------
+  const audio = {
+    ctx: null, masterGain: null, running: false, timer: null,
+    init() {
+      if (this.ctx) return;
+      try {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.gain.value = settings.volume * 0.25;
+        this.masterGain.connect(this.ctx.destination);
+      } catch (e) {}
+    },
+    setVolume(v) {
+      settings.volume = v;
+      if (this.masterGain) this.masterGain.gain.value = v * 0.25;
+    },
+    start() {
+      this.init();
+      if (!this.ctx || this.running) return;
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      this.running = true;
+      this._scheduleNext();
+    },
+    stop() {
+      this.running = false;
+      if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+    },
+    _scheduleNext() {
+      if (!this.running || !this.ctx) return;
+      const notes = [110, 164.81, 146.83, 196, 130.81, 220, 174.61];
+      const freq = notes[Math.floor(Math.random() * notes.length)];
+      this._playNote(freq, 1);
+      if (Math.random() < 0.4) setTimeout(() => this._playNote(freq * 1.5, 0.5), 150);
+      this.timer = setTimeout(() => this._scheduleNext(), 1800 + Math.random() * 1400);
+    },
+    _playNote(freq, gainMult) {
+      const ctx = this.ctx;
+      const osc = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 900;
+      filter.Q.value = 2;
+      osc.type = 'sine';
+      osc2.type = 'triangle';
+      osc.frequency.value = freq;
+      osc2.frequency.value = freq * 2.01;
+      const now = ctx.currentTime;
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.25 * gainMult, now + 0.8);
+      gain.gain.linearRampToValueAtTime(0, now + 3.5);
+      osc.connect(filter);
+      osc2.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(now);
+      osc2.start(now);
+      osc.stop(now + 3.6);
+      osc2.stop(now + 3.6);
+    },
+    blip(freq = 880) {
+      this.init();
+      if (!this.ctx) return;
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      const ctx = this.ctx;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.value = freq;
+      const now = ctx.currentTime;
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.08, now + 0.005);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(now);
+      osc.stop(now + 0.1);
+    },
+    pop() {
+      this.init();
+      if (!this.ctx) return;
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      const ctx = this.ctx;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      const now = ctx.currentTime;
+      osc.frequency.setValueAtTime(600, now);
+      osc.frequency.exponentialRampToValueAtTime(180, now + 0.12);
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.12, now + 0.005);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(now);
+      osc.stop(now + 0.16);
+    },
+    // Non-lethal hit — shorter, duller than pop
+    thud() {
+      this.init();
+      if (!this.ctx) return;
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      const ctx = this.ctx;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'square';
+      const now = ctx.currentTime;
+      osc.frequency.setValueAtTime(260, now);
+      osc.frequency.exponentialRampToValueAtTime(100, now + 0.08);
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.06, now + 0.003);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(now);
+      osc.stop(now + 0.12);
+    },
+    // Power-up pickup — two quick cheerful notes
+    chime() {
+      this.init();
+      if (!this.ctx) return;
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      const ctx = this.ctx;
+      const now = ctx.currentTime;
+      // C5 then G5
+      [523.25, 783.99].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        const start = now + i * 0.05;
+        g.gain.setValueAtTime(0, start);
+        g.gain.linearRampToValueAtTime(0.12, start + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.001, start + 0.4);
+        osc.connect(g);
+        g.connect(this.masterGain);
+        osc.start(start);
+        osc.stop(start + 0.45);
+      });
+    },
+    // Wave-clear "sweep"
+    sweep() {
+      this.init();
+      if (!this.ctx) return;
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      const ctx = this.ctx;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      const now = ctx.currentTime;
+      osc.frequency.setValueAtTime(120, now);
+      osc.frequency.exponentialRampToValueAtTime(900, now + 0.4);
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.15, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(now);
+      osc.stop(now + 0.55);
+    },
+    // Portal "descend"
+    descend() {
+      this.init();
+      if (!this.ctx) return;
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      const ctx = this.ctx;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      const now = ctx.currentTime;
+      osc.frequency.setValueAtTime(700, now);
+      osc.frequency.exponentialRampToValueAtTime(80, now + 0.9);
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.18, now + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(now);
+      osc.stop(now + 1.05);
+    }
+  };
+
+  // ---------- Canvas / game ----------
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const timeEl = document.getElementById('time');
+  const levelEl = document.getElementById('level');
+  const hudEl = document.getElementById('hud');
+  const tagsEl = document.getElementById('tags');
+  const killsEl = document.getElementById('kills');
+  const bossHpTextEl = document.getElementById('boss-hp-text');
+  const bossHpFillEl = document.getElementById('boss-hp-fill');
+  const bossesDefeatedEl = document.getElementById('bossesDefeated');
+  const bossDeathCountEl = document.getElementById('bossDeathCount');
+  const finalLevelEl = document.getElementById('finalLevel');
+  const highScoreLevelEl = document.getElementById('highScoreLevel');
+  const padStatusEl = document.getElementById('pad-status');
+
+  // Radii bumped 50%
+  const PLAYER_RADIUS = 9 * 1.5;
+  const PLAYER_SPEED = 230;
+  const ENEMY_RADIUS = 8 * 1.5;
+  const ENEMY_SPEED_MIN = 90;
+  const ENEMY_SPEED_MAX = 140;
+  const BASE_SPAWN_INTERVAL = 0.9;
+  const MIN_SPAWN_INTERVAL = 0.18;
+  const RAMP_TIME = 90;
+
+  // Level structure
+  const LEVEL_DURATION = 60;
+  const INTRO_DURATION = 0.75;
+  const CLEAR_DURATION = 0.9;
+  const FALL_DURATION = 1.3;
+  const PORTAL_RADIUS = 26;
+
+  // Projectiles
+  const PROJECTILE_RADIUS = 4;
+  const PROJECTILE_SPEED = 620;
+  const SHOOT_COOLDOWN = 0.14;
+
+  // Gamepad
+  const STICK_DEADZONE = 0.18;
+  const MENU_STICK_THRESHOLD = 0.5; // stick must be past this to trigger menu nav
+
+  const keys = { w: false, a: false, s: false, d: false };
+  const KEY_MAP = {
+    'w': 'w', 'a': 'a', 's': 's', 'd': 'd',
+    'arrowup': 'w', 'arrowleft': 'a', 'arrowdown': 's', 'arrowright': 'd',
+  };
+  const mouse = { x: W / 2, y: H / 2, down: false, inCanvas: false };
+
+  // ---------- Runtime state ----------
+  let state = 'main';
+  // Up to 2 players. players[0] is P1, players[1] is P2 (when present).
+  let players = [];
+  let numPlayers = 1;
+  let enemies = [], particles = [], projectiles = [];
+  let portal = null;
+  let level = 1;
+  let timeLeft = LEVEL_DURATION;
+  let spawnTimer = 0;
+  let lastT = 0;
+
+  // Game mode: 'normal' (levels / timer / descent) or 'boss' (gauntlet fight)
+  let gameMode = 'normal';
+  let boss = null;              // active boss entity when in boss mode, else null
+  let yellowDots = [];          // indestructible wall-wave dots during shadow phase
+  let currentBossIndex = 0;     // which boss in the gauntlet we're on
+  let bossDefeatedCount = 0;    // how many bosses cleared this gauntlet run
+
+  const PLAYER_COLOR_1 = '#4ade80'; // green
+  const PLAYER_COLOR_2 = '#60a5fa'; // blue
+
+  // Phase within 'playing' state:
+  // 'intro' -> 'combat' -> 'clearing' -> 'portal' -> 'falling' -> 'intro' (next level)
+  let phase = 'intro';
+  let phaseTimer = 0;
+
+  let lastRunLevel = 1;
+
+  // ---------- Hidden level tags ----------
+  // Level 1 = 0 tags. Each subsequent level adds one more tag from a
+  // shuffled pool. The order is fixed per-run so tags accumulate
+  // predictably as the player descends.
+  const TAG_POOL = ['tracker', 'slowfire', 'tanky', 'swarm', 'vortex', 'walls', 'windmill'];
+
+  // Fixed intro order: levels 2..8 add tags in this sequence, one per level.
+  // Once all 7 tags are introduced (level 8), additional levels stack a random
+  // existing tag instead.
+  const TAG_INTRO_ORDER = ['tracker', 'tanky', 'walls', 'vortex', 'windmill', 'swarm', 'slowfire'];
+
+  // HUD display info for each tag: colored dot + label
+  const TAG_HUD_LABELS = {
+    tracker:  'TRACKER',
+    slowfire: 'SLOWFIRE',
+    tanky:    'TANKY',
+    swarm:    'SWARM',
+    vortex:   'VORTEX',
+    walls:    'WALLS',
+    windmill: 'WINDMILL',
+  };
+  const TAG_HUD_COLORS = {
+    tracker:  '#f87171',  // red
+    slowfire: '#d1d5db',  // light grey — matches the in-arena entity
+    tanky:    '#14b8a6',  // teal — distinct from orange/red family
+    swarm:    '#fb923c',  // enemy orange
+    vortex:   '#c084fc',  // light purple
+    walls:    '#9ca3af',  // mid grey
+    windmill: '#7dd3fc',  // sky blue — metallic/mechanical
+  };
+
+  // Effect tunables
+  const TAG_RED            = '#ef4444';
+  const TAG_PURPLE         = '#a855f7';
+  const TRACKER_TURN_RATE  = 2.2;   // higher = snappier homing
+  const SLOWFIRE_FACTOR    = 1 / 0.7; // per-aura: cooldown multiplied by 1/0.7 while in one aura
+  const SWARM_ENEMY_SCALE  = 0.7;   // smaller dots when Swarm is active
+  const SWARM_SPEED_MULT   = 1.10;  // Swarm makes all dots 10% faster
+  const TRACKER_SPEED_MULT = 1.10;  // Trackers are naturally 10% faster than normal dots
+  const HIT_FLASH_DURATION = 0.12;
+  // Slowfire: stationary grey dot with a large aura. When a player stands
+  // inside an aura their shoot cooldown is multiplied by SLOWFIRE_FACTOR
+  // (per overlapping aura). Destructible, 10 HP, not lethal on contact.
+  const SLOWFIRE_RADIUS     = 16;
+  const SLOWFIRE_AOE_RADIUS = 130;
+  const SLOWFIRE_HP         = 10;
+  const SLOWFIRE_COLOR      = '#d1d5db'; // light slate-grey (entity + HUD)
+  const SLOWFIRE_COLOR_DIM  = '#94a3b8'; // slightly darker for aura edges
+  // Vortex: purple dots with a medium AOE that halves player speed.
+  // Each dot slowly tracks the nearest living player, is lethal on contact,
+  // and takes 10 hits to destroy. While the Vortex tag is active, a new one
+  // spawns every 10 seconds of combat time.
+  const VORTEX_RADIUS         = 16;
+  const VORTEX_AOE_RADIUS     = 115;
+  const VORTEX_SLOW_MULT      = 0.5;
+  const VORTEX_SPEED          = 28;   // very slow pursuit speed
+  const VORTEX_STEER_RATE     = 1.0;  // how quickly it adjusts direction
+  const VORTEX_HP             = 10;
+  const VORTEX_SPAWN_INTERVAL = 10;   // seconds between reinforcement spawns
+  // Tracker: fraction of spawns that become red homing enemies (rest spawn normally)
+  const TRACKER_SPAWN_FRACTION = 1 / 3;
+  // Walls: 4 rectangles the player can't pass through (enemies/projectiles still can)
+  const WALL_COUNT            = 4;
+  const WALL_THICKNESS        = 22;
+  const WALL_LENGTH_MIN       = 80;
+  const WALL_LENGTH_MAX       = 140;
+  const WALL_EDGE_MARGIN      = 30;   // keep off the arena edge
+  const WALL_CENTER_CLEAR     = 100;  // keep away from spawn center
+  const WALL_SEPARATION       = 20;   // minimum space between walls
+  // Windmill: 4-blade rotating cross, lethal on blade contact. Only ever one;
+  // additional stacks speed up rotation by 5% each beyond the first.
+  const WINDMILL_HUB_RADIUS       = 14;
+  const WINDMILL_BLADE_LENGTH     = 90;   // from hub center to blade tip
+  const WINDMILL_BLADE_WIDTH      = 24;
+  const WINDMILL_BASE_SPEED       = 0.8;  // radians/sec at stack 1
+  const WINDMILL_SPEED_PER_STACK  = 0.05; // linear +5% per extra stack
+  const WINDMILL_CENTER_CLEAR     = 160;  // keep hub this far from spawn center
+  const WINDMILL_EDGE_MARGIN      = WINDMILL_BLADE_LENGTH + 10;
+  const WINDMILL_COLOR            = '#475569';
+  const WINDMILL_EDGE_COLOR       = '#64748b';
+  const WINDMILL_HUB_COLOR        = '#94a3b8';
+
+  let tagSequence = [];         // per-run sequence of tags, generated with replacement
+  let activeTags = new Set();   // unique tags present this level
+  let tagCounts = {};           // { tag: stackCount } for the current level
+
+  function rollRandomTag() {
+    return TAG_POOL[Math.floor(Math.random() * TAG_POOL.length)];
+  }
+
+  // Build the tag sequence up to `n` entries. Positions 0..TAG_INTRO_ORDER.length-1
+  // follow the fixed intro order (one new tag per level). Positions beyond that
+  // roll random tags from the pool, which stack existing tags.
+  function ensureSequenceLength(n) {
+    while (tagSequence.length < n) {
+      const idx = tagSequence.length;
+      if (idx < TAG_INTRO_ORDER.length) {
+        tagSequence.push(TAG_INTRO_ORDER[idx]);
+      } else {
+        tagSequence.push(rollRandomTag());
+      }
+    }
+  }
+
+  function getTagCount(tag) {
+    return tagCounts[tag] || 0;
+  }
+
+  // Build the pill row shown in the HUD from the current tagCounts. Use the
+  // tag pool ordering so pills appear in a consistent, predictable sequence
+  // regardless of the random roll that produced them.
+  function updateTagsHud() {
+    if (!tagsEl) return;
+    const pills = [];
+    for (const tag of TAG_POOL) {
+      const count = getTagCount(tag);
+      if (count <= 0) continue;
+      const color = TAG_HUD_COLORS[tag] || '#ffffff';
+      const label = TAG_HUD_LABELS[tag] || tag.toUpperCase();
+      pills.push(
+        '<span class="tag-pill" style="color:' + color + ';border-color:' + color + '40">' +
+          '<span class="tag-dot" style="background:' + color + '"></span>' +
+          label +
+          '<span class="tag-count">&times;' + count + '</span>' +
+        '</span>'
+      );
+    }
+    tagsEl.innerHTML = pills.join('');
+  }
+
+  // Update the Kills readout. Shows progress toward the next nuke threshold
+  // (e.g. "42/100"). When a nuke is already on the field, show "READY" in red
+  // so players know there's a pickup waiting rather than a counter that isn't
+  // advancing.
+  function updateKillsHud() {
+    if (!killsEl) return;
+    if (nuke) {
+      killsEl.textContent = 'READY';
+      killsEl.classList.add('ready');
+    } else {
+      const progress = totalKills - (nextNukeAt - NUKE_KILL_THRESHOLD);
+      const capped = Math.max(0, Math.min(NUKE_KILL_THRESHOLD, progress));
+      killsEl.textContent = capped + '/' + NUKE_KILL_THRESHOLD;
+      killsEl.classList.remove('ready');
+    }
+  }
+
+  function getEnemyColorFor(e) {
+    return e && e.tracker ? TAG_RED : settings.enemyColor;
+  }
+  function getCurrentCooldown(p) {
+    let cd = SHOOT_COOLDOWN;
+    // Slowfire: count how many slowfire auras the player stands in. Each one
+    // multiplies cooldown by SLOWFIRE_FACTOR. Outside all auras = normal fire.
+    if (p) {
+      const auras = countSlowfireAurasOn(p);
+      if (auras > 0) cd *= Math.pow(SLOWFIRE_FACTOR, auras);
+    }
+    if (p && p.powerupTimers.faster > 0) cd *= FASTER_FIRE_FACTOR;
+    return cd;
+  }
+
+  // ---------- Power-ups ----------
+  // A star pickup spawns roughly every 15 seconds. Only one star is on the
+  // arena at a time; the spawn timer resets on pickup. Bigger/Faster/Piercing
+  // persist for the rest of the run (until death); Invuln is strictly timed.
+  // In 2P, powerups apply to the player who picked them up.
+  const POWERUP_TYPES          = ['bigger', 'faster', 'piercing', 'invuln', 'doubleshot'];
+  const POWERUP_LABELS         = {
+    bigger:     'BIGGER BULLETS',
+    faster:     'FASTER BULLETS',
+    piercing:   'PIERCING BULLETS',
+    invuln:     'INVULNERABLE',
+    doubleshot: 'DOUBLE SHOT',
+  };
+  const POWERUP_SPAWN_INTERVAL = 15;    // seconds between spawns
+  const POWERUP_RADIUS         = 14;    // star outer radius / pickup hitbox
+  const POWERUP_GOLD           = '#fbbf24';
+  const BIGGER_BULLET_SCALE    = 2;     // 100% bigger
+  const FASTER_FIRE_FACTOR     = 0.7;   // 30% faster fire → 0.7× cooldown
+  const PIERCING_COUNT         = 1;     // extra hits per projectile
+  const DOUBLESHOT_SPREAD      = 8 * Math.PI / 180; // ±8° V-pattern
+  const POWERUP_DURATION       = 7;     // all powerups last 7 seconds
+
+  // 2P revive: a dead player comes back after REVIVE_DELAY seconds, with
+  // REVIVE_INVULN seconds of invulnerability and a fade-in animation of the
+  // same length. In 1P this is moot — endGame() fires the instant the player
+  // dies because livingPlayers().length === 0.
+  const REVIVE_DELAY  = 7;
+  const REVIVE_INVULN = 3;
+
+  // Nuke (red star): spawns every N lifetime kills, clears the board on pickup.
+  const NUKE_KILL_THRESHOLD    = 100;
+  const NUKE_RADIUS            = 17;    // slightly bigger than gold star
+  const NUKE_RED               = '#ef4444';
+
+  // ---------- Boss Gauntlet ----------
+  // Shared boss tunables
+  const BOSS_DPS_DURATION      = 6;     // seconds the boss is out and vulnerable
+  const BOSS_SINK_DURATION     = 0.5;   // transition into shadow
+  const BOSS_EMERGE_DURATION   = 0.5;   // transition out of shadow
+  const BOSS_WAVE_WARNING      = 2;     // seconds yellow dots sit still before moving
+  const BOSS_STEER_RATE        = 1.3;   // how snappy the boss chases
+  const BOSS_SHADOW_COLOR      = '#2a2d34';
+
+  // Yellow dot wall tunables
+  const YELLOW_DOT_RADIUS      = 15;
+  const YELLOW_DOT_SPACING     = 30;    // center-to-center; tangent circles
+  const YELLOW_DOT_COLOR       = '#fde047';
+  const YELLOW_WAVE_SPEED      = 340;   // px/s crossing speed
+  const YELLOW_GAP_DOT_COUNT   = 2;     // dots per gap
+  const YELLOW_GAP_COUNT       = 2;     // gaps per wall
+
+  // Registry of bosses. Add new bosses here as more are designed.
+  // Shared fields: id, name, type, maxHp, radius, color
+  // - type 'pursuer': phase machine (dps → sinking → waves → emerging)
+  //     extra: speed (pursuit px/s)
+  // - type 'turret':  stationary in corner, shoots red dots, spawns vortex bursts on HP milestones
+  //     extra: corner ('top-left'|'top-right'|'bottom-left'|'bottom-right')
+  //            shotInterval (seconds between red-dot volleys)
+  //            projectileSpeedMult (multiplier on base enemy speed for red dots)
+  //            vortexThresholds (HP values; each crossing launches vortexes)
+  //            vortexSpeedMult (multiplier on base vortex speed)
+  //            arenaWindmill: { bladeLength, bladeWidth, hubRadius, angularSpeed } | null
+  const BOSSES = [
+    {
+      id: 1,
+      name: 'Boss 1',
+      type: 'pursuer',
+      maxHp: 200,
+      radius: 40,
+      color: '#b91c1c',       // deep red
+      speed: 120,             // pursuit speed during DPS phase
+    },
+    {
+      id: 2,
+      name: 'Boss 2',
+      type: 'turret',
+      maxHp: 200,
+      radius: 40,
+      color: '#0f766e',       // dark teal — distinct from Boss #1
+      corner: 'top-right',
+      shotInterval: 2.0,
+      projectileSpeedMult: 1.5,       // 50% faster red dots
+      vortexThresholds: [150, 100, 50],
+      vortexSpeedMult: 2.0,           // 100% faster vortex pursuit
+      arenaWindmill: {
+        bladeLength: 290,
+        bladeWidth: 32,
+        hubRadius: 22,
+        angularSpeed: 0.5,
+      },
+    },
+  ];
+
+  const BOSS_CORNER_MARGIN = 60;  // how far from arena edges boss sits in a corner
+
+  let powerup = null;         // { x, y, type, age } or null
+  let powerupTimer = 0;       // counts down; respawn when it hits 0 and no powerup present
+  let vortexSpawnTimer = 0;   // counts down during combat; spawns a vortex when the Vortex tag is active
+  let nuke = null;            // { x, y, age } red-star board-clear pickup, or null
+  let totalKills = 0;         // lifetime enemy kills this run
+  let nextNukeAt = NUKE_KILL_THRESHOLD; // kill count at which the next nuke may spawn
+
+  let vortexes = [];          // array of { x, y, vx, vy, age, hp, hitFlash }
+  let slowfires = [];         // array of { x, y, age, hp, hitFlash }
+  let walls = [];             // [{ x, y, w, h }, ...] when the Walls tag is active
+  let windmill = null;        // { x, y, angle, angularSpeed } when the Windmill tag is active
+  let toasts = [];            // floating text on pickup
+
+  function resetPowerupState() {
+    powerup = null;
+    powerupTimer = POWERUP_SPAWN_INTERVAL;
+    // per-player flags live on the player objects themselves
+  }
+
+  function randomPowerupType() {
+    return POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
+  }
+
+  function playerHasAnyPowerup(p) {
+    if (!p) return false;
+    const t = p.powerupTimers;
+    return t.bigger > 0 || t.faster > 0 || t.piercing > 0 || t.invuln > 0 || t.doubleshot > 0;
+  }
+
+  function livingPlayers() {
+    return players.filter(p => p.alive);
+  }
+
+  function spawnPowerupStar() {
+    const margin = 50;
+    let x, y;
+    for (let attempts = 0; attempts < 16; attempts++) {
+      x = margin + Math.random() * (W - 2 * margin);
+      y = margin + Math.random() * (H - 2 * margin);
+      // Keep it clear of any living player
+      let tooClose = false;
+      for (const p of players) {
+        if (!p.alive) continue;
+        if (Math.hypot(x - p.x, y - p.y) < 110) { tooClose = true; break; }
+      }
+      if (tooClose) continue;
+      // Keep it clear of every vortex aura
+      let inAnyAura = false;
+      for (const v of vortexes) {
+        if (Math.hypot(x - v.x, y - v.y) < VORTEX_AOE_RADIUS + 20) { inAnyAura = true; break; }
+      }
+      if (inAnyAura) continue;
+      // Don't spawn inside a wall (pickup hitbox padding)
+      if (pointInsideAnyWall(x, y, POWERUP_RADIUS + 4)) continue;
+      break;
+    }
+    powerup = { x, y, type: randomPowerupType(), age: 0 };
+  }
+
+  function recordKill() {
+    totalKills += 1;
+    if (totalKills >= nextNukeAt && !nuke) {
+      spawnNuke();
+      nextNukeAt += NUKE_KILL_THRESHOLD;
+    }
+    updateKillsHud();
+  }
+
+  function pickUpPowerup(p, who) {
+    // All powerups last POWERUP_DURATION seconds; repeat pickups refresh the timer
+    who.powerupTimers[p.type] = POWERUP_DURATION;
+    spawnParticles(p.x, p.y, POWERUP_GOLD, 18, 80, 260, 0.4, 0.7);
+    const label = numPlayers > 1
+      ? (who.index === 0 ? 'P1 ' : 'P2 ') + POWERUP_LABELS[p.type]
+      : POWERUP_LABELS[p.type];
+    addToast(p.x, p.y - POWERUP_RADIUS - 6, label, POWERUP_GOLD);
+    audio.chime();
+    powerup = null;
+    powerupTimer = POWERUP_SPAWN_INTERVAL;
+  }
+
+  // ---------- Nuke (red star) ----------
+  function spawnNuke() {
+    const margin = 50;
+    let x = W / 2, y = H / 2;
+    for (let attempts = 0; attempts < 24; attempts++) {
+      x = margin + Math.random() * (W - 2 * margin);
+      y = margin + Math.random() * (H - 2 * margin);
+      let tooClose = false;
+      for (const p of players) {
+        if (!p.alive) continue;
+        if (Math.hypot(x - p.x, y - p.y) < 110) { tooClose = true; break; }
+      }
+      if (tooClose) continue;
+      // Prefer placements outside vortex auras (but accept if we can't find one)
+      let inAura = false;
+      for (const v of vortexes) {
+        if (Math.hypot(x - v.x, y - v.y) < VORTEX_AOE_RADIUS + 20) { inAura = true; break; }
+      }
+      if (inAura) continue;
+      if (pointInsideAnyWall(x, y, NUKE_RADIUS + 4)) continue;
+      break;
+    }
+    nuke = { x, y, age: 0 };
+  }
+
+  function pickUpNuke(who) {
+    // Burst at the pickup point
+    spawnParticles(nuke.x, nuke.y, NUKE_RED, 30, 120, 380, 0.5, 0.9);
+    // Clear every enemy with its own particle burst
+    for (const e of enemies) {
+      spawnParticles(e.x, e.y, getEnemyColorFor(e), 14, 80, 280, 0.35, 0.6);
+    }
+    enemies = [];
+    // Clear every vortex with a satisfying purple burst
+    for (const v of vortexes) {
+      spawnParticles(v.x, v.y, TAG_PURPLE, 30, 100, 360, 0.5, 1.0);
+    }
+    vortexes = [];
+    for (const s of slowfires) {
+      spawnParticles(s.x, s.y, SLOWFIRE_COLOR, 24, 100, 340, 0.4, 0.9);
+    }
+    slowfires = [];
+    // Reset the vortex reinforcement timer so you don't instantly get another
+    vortexSpawnTimer = VORTEX_SPAWN_INTERVAL;
+
+    const label = numPlayers > 1
+      ? (who.index === 0 ? 'P1 ' : 'P2 ') + 'NUKE!'
+      : 'NUKE!';
+    addToast(nuke.x, nuke.y - NUKE_RADIUS - 6, label, NUKE_RED);
+    audio.sweep();
+    audio.pop();
+    nuke = null;
+    updateKillsHud();
+  }
+
+  function drawNuke() {
+    if (!nuke) return;
+    const pulse = 1 + Math.sin(nuke.age * 5) * 0.14; // more pronounced pulse than gold
+    const rot = nuke.age * 1.3;
+
+    // Outer red glow
+    const glowR = NUKE_RADIUS * 3.6 * pulse;
+    const glow = ctx.createRadialGradient(nuke.x, nuke.y, 0, nuke.x, nuke.y, glowR);
+    glow.addColorStop(0, hexToRgba(NUKE_RED, 0.45));
+    glow.addColorStop(1, hexToRgba(NUKE_RED, 0));
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(nuke.x, nuke.y, glowR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Filled star
+    ctx.fillStyle = NUKE_RED;
+    drawStarShape(nuke.x, nuke.y, NUKE_RADIUS * pulse, NUKE_RADIUS * 0.45 * pulse, rot);
+    ctx.fill();
+
+    // Bright center
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(nuke.x, nuke.y, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function addToast(x, y, text, color) {
+    toasts.push({ x, y, text, color: color || '#e7ecf1', age: 0, life: 1.5, vy: -46 });
+  }
+
+  function updateToasts(dt) {
+    for (let i = toasts.length - 1; i >= 0; i--) {
+      const t = toasts[i];
+      t.age += dt;
+      if (t.age >= t.life) { toasts.splice(i, 1); continue; }
+      t.y += t.vy * dt;
+      t.vy *= 0.94;
+    }
+  }
+
+  function drawToasts() {
+    if (toasts.length === 0) return;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 15px -apple-system, sans-serif';
+    for (const t of toasts) {
+      const life = 1 - t.age / t.life;
+      const alpha = Math.min(1, life * 2); // hold, then fade at the end
+      ctx.globalAlpha = alpha;
+      // Subtle dark halo for readability
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillText(t.text, t.x + 1, t.y + 1);
+      ctx.fillStyle = t.color;
+      ctx.fillText(t.text, t.x, t.y);
+    }
+    ctx.restore();
+  }
+
+  function drawStarShape(cx, cy, outerR, innerR, rotation) {
+    const points = 5;
+    ctx.beginPath();
+    for (let i = 0; i < points * 2; i++) {
+      const r = i % 2 === 0 ? outerR : innerR;
+      const a = rotation + (i / (points * 2)) * Math.PI * 2 - Math.PI / 2;
+      const x = cx + Math.cos(a) * r;
+      const y = cy + Math.sin(a) * r;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+  }
+
+  function drawPowerup() {
+    if (!powerup) return;
+    const pulse = 1 + Math.sin(powerup.age * 4) * 0.1;
+    const rot = powerup.age * 1.0;
+
+    // Outer glow
+    const glowR = POWERUP_RADIUS * 3.2 * pulse;
+    const glow = ctx.createRadialGradient(powerup.x, powerup.y, 0, powerup.x, powerup.y, glowR);
+    glow.addColorStop(0, hexToRgba(POWERUP_GOLD, 0.35));
+    glow.addColorStop(1, hexToRgba(POWERUP_GOLD, 0));
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(powerup.x, powerup.y, glowR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Filled star
+    ctx.fillStyle = POWERUP_GOLD;
+    drawStarShape(powerup.x, powerup.y, POWERUP_RADIUS * pulse, POWERUP_RADIUS * 0.45 * pulse, rot);
+    ctx.fill();
+
+    // Bright center
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(powerup.x, powerup.y, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function spawnVortexes(count) {
+    vortexes = [];
+    for (let n = 0; n < count; n++) spawnOneVortex();
+  }
+
+  function spawnOneVortex() {
+    const margin = VORTEX_AOE_RADIUS * 0.6;
+    let x = W / 2, y = H / 2;
+    for (let attempts = 0; attempts < 40; attempts++) {
+      x = margin + Math.random() * (W - 2 * margin);
+      y = margin + Math.random() * (H - 2 * margin);
+      // Away from spawn center (so initial placement doesn't box players in)
+      if (Math.hypot(x - W / 2, y - H / 2) < 110) continue;
+      // Away from living players so a reinforcement never spawns on top of someone
+      let tooCloseToPlayer = false;
+      for (const p of players) {
+        if (!p.alive) continue;
+        if (Math.hypot(x - p.x, y - p.y) < 150) { tooCloseToPlayer = true; break; }
+      }
+      if (tooCloseToPlayer) continue;
+      // Not overlapping another vortex's aura (breathing room between dots)
+      let tooClose = false;
+      for (const v of vortexes) {
+        if (Math.hypot(v.x - x, v.y - y) < VORTEX_AOE_RADIUS * 1.2) {
+          tooClose = true; break;
+        }
+      }
+      if (tooClose) continue;
+      break;
+    }
+    vortexes.push({ x, y, vx: 0, vy: 0, age: 0, hp: VORTEX_HP, hitFlash: 0 });
+  }
+
+  function isInVortexAura(p) {
+    if (!p || vortexes.length === 0) return false;
+    for (const v of vortexes) {
+      const dx = p.x - v.x, dy = p.y - v.y;
+      if (dx * dx + dy * dy <= VORTEX_AOE_RADIUS * VORTEX_AOE_RADIUS) return true;
+    }
+    return false;
+  }
+
+  // ---------- Slowfire ----------
+  // Grey dots with a large aura that slows fire rate. Stationary, 10 HP,
+  // non-lethal on contact. Destroying them clears their aura for the rest
+  // of the level (no reinforcement — unlike vortex, these aren't a threat
+  // you have to avoid, they're a debuff you can choose to clear).
+  function spawnSlowfires(count) {
+    slowfires = [];
+    for (let n = 0; n < count; n++) spawnOneSlowfire();
+  }
+
+  function spawnOneSlowfire() {
+    const margin = SLOWFIRE_AOE_RADIUS * 0.5;
+    let x = W / 2, y = H / 2;
+    for (let attempts = 0; attempts < 40; attempts++) {
+      x = margin + Math.random() * (W - 2 * margin);
+      y = margin + Math.random() * (H - 2 * margin);
+      // Away from spawn center so initial placement doesn't trap players in slow
+      if (Math.hypot(x - W / 2, y - H / 2) < 130) continue;
+      // Away from other slowfires and vortex dots
+      let tooClose = false;
+      for (const s of slowfires) {
+        if (Math.hypot(s.x - x, s.y - y) < SLOWFIRE_AOE_RADIUS * 1.1) { tooClose = true; break; }
+      }
+      if (tooClose) continue;
+      for (const v of vortexes) {
+        if (Math.hypot(v.x - x, v.y - y) < SLOWFIRE_AOE_RADIUS + VORTEX_AOE_RADIUS * 0.8) {
+          tooClose = true; break;
+        }
+      }
+      if (tooClose) continue;
+      break;
+    }
+    slowfires.push({ x, y, age: 0, hp: SLOWFIRE_HP, hitFlash: 0 });
+  }
+
+  // How many slowfire auras overlap this player's position. Used by
+  // getCurrentCooldown to scale fire-rate penalty.
+  function countSlowfireAurasOn(p) {
+    if (!p || slowfires.length === 0) return 0;
+    let n = 0;
+    for (const s of slowfires) {
+      const dx = p.x - s.x, dy = p.y - s.y;
+      if (dx * dx + dy * dy <= SLOWFIRE_AOE_RADIUS * SLOWFIRE_AOE_RADIUS) n++;
+    }
+    return n;
+  }
+
+  function updateSlowfires(dt) {
+    for (const s of slowfires) {
+      s.age += dt;
+      if (s.hitFlash > 0) s.hitFlash = Math.max(0, s.hitFlash - dt);
+    }
+  }
+
+  function drawSlowfires() {
+    for (const s of slowfires) drawSingleSlowfire(s);
+  }
+
+  function drawSingleSlowfire(s) {
+    const pulse = 1 + Math.sin(s.age * 1.8) * 0.03;
+
+    // AOE aura — grey gradient
+    const auraR = SLOWFIRE_AOE_RADIUS * pulse;
+    const aura = ctx.createRadialGradient(s.x, s.y, SLOWFIRE_RADIUS * 0.8, s.x, s.y, auraR);
+    aura.addColorStop(0,   hexToRgba(SLOWFIRE_COLOR, 0.22));
+    aura.addColorStop(0.7, hexToRgba(SLOWFIRE_COLOR, 0.08));
+    aura.addColorStop(1,   hexToRgba(SLOWFIRE_COLOR, 0));
+    ctx.fillStyle = aura;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, auraR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Aura edge ring — a dashed ring to visually distinguish from vortex
+    ctx.save();
+    ctx.strokeStyle = hexToRgba(SLOWFIRE_COLOR_DIM, 0.55);
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, auraR, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    // Solid dot — shrinks with HP loss, flashes white when hit
+    const hpScale = 0.7 + 0.3 * (s.hp / SLOWFIRE_HP);
+    const dotR = SLOWFIRE_RADIUS * hpScale;
+    ctx.fillStyle = s.hitFlash > 0 ? '#ffffff' : SLOWFIRE_COLOR;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, dotR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Inner highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.beginPath();
+    ctx.arc(s.x - dotR * 0.25, s.y - dotR * 0.25, dotR * 0.35, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // ---------- Walls ----------
+  function rectsOverlap(a, b, pad) {
+    const p = pad || 0;
+    return !(a.x + a.w + p < b.x ||
+             b.x + b.w + p < a.x ||
+             a.y + a.h + p < b.y ||
+             b.y + b.h + p < a.y);
+  }
+
+  function spawnWalls(count) {
+    walls = [];
+    const target = Math.max(0, count);
+    const maxAttempts = 300;
+    let attempts = 0;
+    while (walls.length < target && attempts < maxAttempts) {
+      attempts++;
+      const horizontal = Math.random() < 0.5;
+      const len = WALL_LENGTH_MIN + Math.random() * (WALL_LENGTH_MAX - WALL_LENGTH_MIN);
+      const w = horizontal ? len : WALL_THICKNESS;
+      const h = horizontal ? WALL_THICKNESS : len;
+      const x = WALL_EDGE_MARGIN + Math.random() * (W - w - 2 * WALL_EDGE_MARGIN);
+      const y = WALL_EDGE_MARGIN + Math.random() * (H - h - 2 * WALL_EDGE_MARGIN);
+      const wall = { x, y, w, h };
+
+      // Keep away from the spawn center so players have room to breathe
+      const cx = x + w / 2, cy = y + h / 2;
+      if (Math.hypot(cx - W / 2, cy - H / 2) < WALL_CENTER_CLEAR) continue;
+
+      // Don't overlap existing walls
+      let overlaps = false;
+      for (const other of walls) {
+        if (rectsOverlap(wall, other, WALL_SEPARATION)) { overlaps = true; break; }
+      }
+      if (overlaps) continue;
+
+      // Don't sit on top of any vortex dot
+      let overlapsVortex = false;
+      for (const v of vortexes) {
+        const near = { x: v.x - VORTEX_RADIUS, y: v.y - VORTEX_RADIUS,
+                       w: VORTEX_RADIUS * 2, h: VORTEX_RADIUS * 2 };
+        if (rectsOverlap(wall, near, 12)) { overlapsVortex = true; break; }
+      }
+      if (overlapsVortex) continue;
+
+      walls.push(wall);
+    }
+  }
+
+  // Circle-vs-AABB push-out: if the player overlaps a wall, resolve along the
+  // shortest penetration axis (the direction with the smallest separation).
+  function resolvePlayerWallCollisions(p) {
+    for (const w of walls) {
+      const cx = Math.max(w.x, Math.min(p.x, w.x + w.w));
+      const cy = Math.max(w.y, Math.min(p.y, w.y + w.h));
+      const dx = p.x - cx;
+      const dy = p.y - cy;
+      const dist2 = dx * dx + dy * dy;
+      const r = PLAYER_RADIUS;
+      if (dist2 >= r * r) continue;
+
+      if (dist2 > 0.0001) {
+        const dist = Math.sqrt(dist2);
+        const push = r - dist;
+        p.x += (dx / dist) * push;
+        p.y += (dy / dist) * push;
+      } else {
+        // Player center exactly on a wall edge — push out along nearest face
+        const leftGap   = Math.abs(p.x - w.x);
+        const rightGap  = Math.abs((w.x + w.w) - p.x);
+        const topGap    = Math.abs(p.y - w.y);
+        const bottomGap = Math.abs((w.y + w.h) - p.y);
+        const minGap = Math.min(leftGap, rightGap, topGap, bottomGap);
+        if      (minGap === leftGap)   p.x = w.x - r;
+        else if (minGap === rightGap)  p.x = w.x + w.w + r;
+        else if (minGap === topGap)    p.y = w.y - r;
+        else                           p.y = w.y + w.h + r;
+      }
+    }
+  }
+
+  function pointInsideAnyWall(x, y, pad = 0) {
+    for (const w of walls) {
+      if (x >= w.x - pad && x <= w.x + w.w + pad &&
+          y >= w.y - pad && y <= w.y + w.h + pad) return true;
+    }
+    return false;
+  }
+
+  function drawWalls(alpha = 1) {
+    if (walls.length === 0 || alpha <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    for (const w of walls) {
+      // Body
+      ctx.fillStyle = '#3a404c';
+      ctx.fillRect(w.x, w.y, w.w, w.h);
+      // Top highlight for a bit of depth
+      ctx.fillStyle = '#4c525e';
+      ctx.fillRect(w.x, w.y, w.w, 3);
+      // Bottom shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      ctx.fillRect(w.x, w.y + w.h - 2, w.w, 2);
+    }
+    ctx.restore();
+  }
+
+  // ---------- Windmill ----------
+  function spawnWindmill(stackCount) {
+    const speedMult = 1 + WINDMILL_SPEED_PER_STACK * Math.max(0, stackCount - 1);
+    const margin = WINDMILL_EDGE_MARGIN;
+    let x = W / 2, y = H / 2;
+    for (let attempts = 0; attempts < 80; attempts++) {
+      x = margin + Math.random() * (W - 2 * margin);
+      y = margin + Math.random() * (H - 2 * margin);
+      // Keep hub away from spawn center so players aren't trapped
+      if (Math.hypot(x - W / 2, y - H / 2) < WINDMILL_CENTER_CLEAR) continue;
+      // Don't spawn on top of a vortex's aura
+      let overlapsVortex = false;
+      for (const v of vortexes) {
+        if (Math.hypot(x - v.x, y - v.y) < VORTEX_AOE_RADIUS + WINDMILL_BLADE_LENGTH) {
+          overlapsVortex = true; break;
+        }
+      }
+      if (overlapsVortex) continue;
+      break;
+    }
+    windmill = {
+      x, y,
+      angle: Math.random() * Math.PI * 2,
+      angularSpeed: WINDMILL_BASE_SPEED * speedMult,
+      bladeLength: WINDMILL_BLADE_LENGTH,
+      bladeWidth: WINDMILL_BLADE_WIDTH,
+      hubRadius: WINDMILL_HUB_RADIUS,
+    };
+  }
+
+  // Create a windmill centered on the arena with the given dimensions/speed,
+  // used by Boss #2's arena-spanning mechanic. Overwrites any tag windmill.
+  function spawnArenaWindmill(bladeLength, bladeWidth, hubRadius, angularSpeed) {
+    windmill = {
+      x: W / 2,
+      y: H / 2,
+      angle: Math.random() * Math.PI * 2,
+      angularSpeed,
+      bladeLength,
+      bladeWidth,
+      hubRadius,
+    };
+  }
+
+  // Point (px,py) vs axis-aligned rect [minX..maxX] x [minY..maxY] with
+  // player-radius margin (treats the point as a circle of PLAYER_RADIUS).
+  function circleOverlapsRect(px, py, minX, maxX, minY, maxY) {
+    const cx = Math.max(minX, Math.min(px, maxX));
+    const cy = Math.max(minY, Math.min(py, maxY));
+    const dx = px - cx;
+    const dy = py - cy;
+    return (dx * dx + dy * dy) <= PLAYER_RADIUS * PLAYER_RADIUS;
+  }
+
+  // Is the player overlapping any windmill blade? Rotate the player into the
+  // windmill's local frame and check against axis-aligned blade rectangles.
+  function playerTouchesWindmill(p) {
+    if (!windmill) return false;
+    const cosA = Math.cos(windmill.angle);
+    const sinA = Math.sin(windmill.angle);
+    const dx = p.x - windmill.x;
+    const dy = p.y - windmill.y;
+    const lx = dx * cosA + dy * sinA;
+    const ly = -dx * sinA + dy * cosA;
+    const halfW = windmill.bladeWidth / 2;
+    const bl = windmill.bladeLength;
+    return (
+      circleOverlapsRect(lx, ly,  0,     bl,  -halfW, halfW) ||   // right blade
+      circleOverlapsRect(lx, ly, -halfW, halfW, 0,     bl)    ||   // down blade
+      circleOverlapsRect(lx, ly, -bl,    0,   -halfW, halfW) ||   // left blade
+      circleOverlapsRect(lx, ly, -halfW, halfW, -bl,   0)          // up blade
+    );
+  }
+
+  function updateWindmill(dt) {
+    if (!windmill) return;
+    windmill.angle += windmill.angularSpeed * dt;
+    if (windmill.angle > Math.PI * 4) windmill.angle -= Math.PI * 2;
+    // Lethal blade contact
+    for (const p of players) {
+      if (!p.alive || p.powerupTimers.invuln > 0) continue;
+      if (playerTouchesWindmill(p)) {
+        killPlayer(p);
+        if (livingPlayers().length === 0) { endGame(); return; }
+      }
+    }
+  }
+
+  function drawWindmill(alpha = 1) {
+    if (!windmill || alpha <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(windmill.x, windmill.y);
+    ctx.rotate(windmill.angle);
+
+    const halfW = windmill.bladeWidth / 2;
+    const bl = windmill.bladeLength;
+    const bw = windmill.bladeWidth;
+
+    // 4 blades (axis-aligned now thanks to rotation above)
+    ctx.fillStyle = WINDMILL_COLOR;
+    ctx.fillRect(0,     -halfW, bl, bw);   // right
+    ctx.fillRect(-halfW, 0,     bw, bl);   // down
+    ctx.fillRect(-bl,   -halfW, bl, bw);   // left
+    ctx.fillRect(-halfW, -bl,   bw, bl);   // up
+
+    // Leading-edge highlights
+    ctx.fillStyle = WINDMILL_EDGE_COLOR;
+    ctx.fillRect(0,     -halfW, bl, 2);
+    ctx.fillRect(-halfW, 0,     2,  bl);
+    ctx.fillRect(-bl,   halfW - 2, bl, 2);
+    ctx.fillRect(halfW - 2, -bl, 2,  bl);
+
+    ctx.restore();
+
+    // Hub
+    ctx.fillStyle = WINDMILL_HUB_COLOR;
+    ctx.beginPath();
+    ctx.arc(windmill.x, windmill.y, windmill.hubRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#cbd5e1';
+    ctx.beginPath();
+    ctx.arc(windmill.x, windmill.y, windmill.hubRadius * 0.4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // ---------- Boss Gauntlet ----------
+  function spawnBoss(index) {
+    const config = BOSSES[index];
+    if (!config) return null;
+    const b = {
+      config,
+      x: W / 2,
+      y: config.radius + 30,
+      vx: 0,
+      vy: 0,
+      hp: config.maxHp,
+      maxHp: config.maxHp,
+      hitFlash: 0,
+      phase: 'dps',
+      phaseTimer: 0,
+    };
+    if (config.type === 'turret') {
+      // Place at chosen corner
+      const margin = BOSS_CORNER_MARGIN + config.radius;
+      const cornerMap = {
+        'top-left':     { x: margin,        y: margin },
+        'top-right':    { x: W - margin,    y: margin },
+        'bottom-left':  { x: margin,        y: H - margin },
+        'bottom-right': { x: W - margin,    y: H - margin },
+      };
+      const pos = cornerMap[config.corner] || cornerMap['top-right'];
+      b.x = pos.x;
+      b.y = pos.y;
+      b.cornerId = config.corner || 'top-right';
+      // Shot timer starts partway so first shot isn't immediate
+      b.shotTimer = config.shotInterval * 0.5;
+      // Copy thresholds we haven't yet crossed (mutable list)
+      b.thresholdsRemaining = (config.vortexThresholds || []).slice();
+      // Arena windmill (centered, blades to edges)
+      if (config.arenaWindmill) {
+        const w = config.arenaWindmill;
+        spawnArenaWindmill(w.bladeLength, w.bladeWidth, w.hubRadius, w.angularSpeed);
+      }
+    }
+    return b;
+  }
+
+  // Returns an array of {x, y} for the 3 arena corners that aren't the given
+  // corner id — used to launch a purple-vortex volley from the "other 3" corners.
+  function cornersExcluding(cornerId) {
+    const margin = BOSS_CORNER_MARGIN;
+    const all = {
+      'top-left':     { x: margin,     y: margin },
+      'top-right':    { x: W - margin, y: margin },
+      'bottom-left':  { x: margin,     y: H - margin },
+      'bottom-right': { x: W - margin, y: H - margin },
+    };
+    return Object.keys(all).filter(k => k !== cornerId).map(k => all[k]);
+  }
+
+  // Build a row of indestructible yellow dots along one edge with YELLOW_GAP_COUNT
+  // gaps of YELLOW_GAP_DOT_COUNT missing dots each. The wave sits still during a
+  // warning window, then every dot translates in `dir` at YELLOW_WAVE_SPEED.
+  function spawnWallWave(axis, side) {
+    // axis: 'horizontal' (dots along top/bottom, move vertically)
+    //       'vertical'   (dots along left/right, move horizontally)
+    // side: 'near' (top or left), 'far' (bottom or right)
+    const total = Math.floor((axis === 'horizontal' ? W : H) / YELLOW_DOT_SPACING);
+    // Pick gap slots. Each gap is YELLOW_GAP_DOT_COUNT wide. Avoid the very edges
+    // (first/last dot always present so the wall starts clean).
+    const used = new Set();
+    const gaps = [];
+    const safeMin = 1, safeMax = total - YELLOW_GAP_DOT_COUNT - 1;
+    let attempts = 0;
+    while (gaps.length < YELLOW_GAP_COUNT && attempts < 60) {
+      attempts++;
+      const start = safeMin + Math.floor(Math.random() * (safeMax - safeMin + 1));
+      // Reject if this gap would overlap or be adjacent to another
+      let ok = true;
+      for (let k = -1; k <= YELLOW_GAP_DOT_COUNT; k++) {
+        if (used.has(start + k)) { ok = false; break; }
+      }
+      if (!ok) continue;
+      for (let k = 0; k < YELLOW_GAP_DOT_COUNT; k++) used.add(start + k);
+      gaps.push(start);
+    }
+
+    // Perpendicular axis origin: starting line (on the spawn edge)
+    const margin = YELLOW_DOT_RADIUS + 4;
+    let vx = 0, vy = 0;
+    let baseX = 0, baseY = 0; // top-left anchor for iteration
+    let stepX = 0, stepY = 0;
+    if (axis === 'horizontal') {
+      baseY = (side === 'near') ? margin : H - margin;
+      vy = (side === 'near') ? YELLOW_WAVE_SPEED : -YELLOW_WAVE_SPEED;
+      stepX = YELLOW_DOT_SPACING;
+      baseX = YELLOW_DOT_SPACING / 2;
+    } else {
+      baseX = (side === 'near') ? margin : W - margin;
+      vx = (side === 'near') ? YELLOW_WAVE_SPEED : -YELLOW_WAVE_SPEED;
+      stepY = YELLOW_DOT_SPACING;
+      baseY = YELLOW_DOT_SPACING / 2;
+    }
+
+    for (let i = 0; i < total; i++) {
+      if (used.has(i)) continue;
+      yellowDots.push({
+        x: baseX + i * stepX,
+        y: baseY + i * stepY,
+        vx: 0, vy: 0,     // zero during warning; set to vx/vy when wave starts moving
+        pendingVx: vx,
+        pendingVy: vy,
+      });
+    }
+  }
+
+  // Transition all pending dots to their stored move velocity
+  function releaseYellowDotsToMove() {
+    for (const d of yellowDots) {
+      d.vx = d.pendingVx;
+      d.vy = d.pendingVy;
+    }
+  }
+
+  // Remove dots that have drifted off screen; return true if any remain
+  function anyYellowDotsOnScreen() {
+    for (const d of yellowDots) {
+      if (d.x > -YELLOW_DOT_RADIUS && d.x < W + YELLOW_DOT_RADIUS &&
+          d.y > -YELLOW_DOT_RADIUS && d.y < H + YELLOW_DOT_RADIUS) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function drawYellowDots() {
+    if (yellowDots.length === 0) return;
+    for (const d of yellowDots) {
+      // Soft outer glow
+      const glow = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, YELLOW_DOT_RADIUS * 2);
+      glow.addColorStop(0, hexToRgba(YELLOW_DOT_COLOR, 0.35));
+      glow.addColorStop(1, hexToRgba(YELLOW_DOT_COLOR, 0));
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, YELLOW_DOT_RADIUS * 2, 0, Math.PI * 2);
+      ctx.fill();
+      // Solid body
+      ctx.fillStyle = YELLOW_DOT_COLOR;
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, YELLOW_DOT_RADIUS, 0, Math.PI * 2);
+      ctx.fill();
+      // Highlight
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.beginPath();
+      ctx.arc(d.x - YELLOW_DOT_RADIUS * 0.3, d.y - YELLOW_DOT_RADIUS * 0.3, YELLOW_DOT_RADIUS * 0.35, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawBossShadow() {
+    if (!boss) return;
+    // Pulsing dark puddle where the boss sank
+    const now = performance.now() / 1000;
+    const pulse = 1 + Math.sin(now * 2) * 0.05;
+    const r = boss.config.radius * 1.2 * pulse;
+    const g = ctx.createRadialGradient(boss.x, boss.y, 0, boss.x, boss.y, r);
+    g.addColorStop(0, hexToRgba(BOSS_SHADOW_COLOR, 0.85));
+    g.addColorStop(0.7, hexToRgba(BOSS_SHADOW_COLOR, 0.55));
+    g.addColorStop(1, hexToRgba(BOSS_SHADOW_COLOR, 0));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(boss.x, boss.y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawBoss() {
+    if (!boss) return;
+    const p = boss.phase;
+
+    // During sinking/emerging, interpolate between full body and shadow
+    let scale = 1;
+    if (p === 'sinking')  scale = 1 - Math.min(1, boss.phaseTimer / BOSS_SINK_DURATION);
+    if (p === 'emerging') scale = Math.min(1, boss.phaseTimer / BOSS_EMERGE_DURATION);
+    const shadowPhases = ['wave1-warn', 'wave1-move', 'wave2-warn', 'wave2-move'];
+    if (shadowPhases.indexOf(p) !== -1) { drawBossShadow(); return; }
+    if (p === 'sinking' && scale <= 0) { drawBossShadow(); return; }
+
+    const r = boss.config.radius * scale;
+    if (r <= 0.5) return;
+
+    // Subtle outer glow
+    const glowR = r * 1.8;
+    const glow = ctx.createRadialGradient(boss.x, boss.y, r * 0.5, boss.x, boss.y, glowR);
+    glow.addColorStop(0, hexToRgba(boss.config.color, 0.45));
+    glow.addColorStop(1, hexToRgba(boss.config.color, 0));
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(boss.x, boss.y, glowR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Body — white flash on hit
+    ctx.fillStyle = boss.hitFlash > 0 ? '#ffffff' : boss.config.color;
+    ctx.beginPath();
+    ctx.arc(boss.x, boss.y, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Inner darker core for depth
+    ctx.fillStyle = hexToRgba('#000000', 0.25);
+    ctx.beginPath();
+    ctx.arc(boss.x, boss.y, r * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.beginPath();
+    ctx.arc(boss.x - r * 0.35, boss.y - r * 0.35, r * 0.25, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawVortex() {
+    for (const v of vortexes) drawSingleVortex(v);
+  }
+
+  function drawSingleVortex(v) {
+    const age = v.age;
+    const pulse = 1 + Math.sin(age * 2.2) * 0.04;
+
+    // AOE aura
+    const auraR = VORTEX_AOE_RADIUS * pulse;
+    const aura = ctx.createRadialGradient(v.x, v.y, VORTEX_RADIUS * 0.8, v.x, v.y, auraR);
+    aura.addColorStop(0, hexToRgba(TAG_PURPLE, 0.28));
+    aura.addColorStop(0.7, hexToRgba(TAG_PURPLE, 0.1));
+    aura.addColorStop(1, hexToRgba(TAG_PURPLE, 0));
+    ctx.fillStyle = aura;
+    ctx.beginPath();
+    ctx.arc(v.x, v.y, auraR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Aura edge ring
+    ctx.strokeStyle = hexToRgba(TAG_PURPLE, 0.35);
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(v.x, v.y, auraR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Rotating spiral arms (visual "vortex" feel)
+    const rot = age * 1.2;
+    ctx.save();
+    ctx.translate(v.x, v.y);
+    ctx.rotate(rot);
+    ctx.strokeStyle = hexToRgba(TAG_PURPLE, 0.55);
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 3; i++) {
+      const startA = (i / 3) * Math.PI * 2;
+      const sweep = Math.PI * 0.35;
+      ctx.beginPath();
+      ctx.arc(0, 0, VORTEX_RADIUS * 1.9, startA, startA + sweep);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Solid dot — shrinks with HP loss, flashes white when hit
+    const hpScale = 0.7 + 0.3 * (v.hp / VORTEX_HP); // 1.0 at full HP → 0.7 at 1 HP
+    const dotR = VORTEX_RADIUS * hpScale;
+    ctx.fillStyle = v.hitFlash > 0 ? '#ffffff' : TAG_PURPLE;
+    ctx.beginPath();
+    ctx.arc(v.x, v.y, dotR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Inner highlight (also scaled with HP)
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.beginPath();
+    ctx.arc(v.x - dotR * 0.25, v.y - dotR * 0.25, dotR * 0.35, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Run the boss phase machine for dt seconds and handle all boss + yellow-dot
+  // behavior. Returns false if the fight is over (boss dead or all players dead).
+  function updateBossFight(dt) {
+    if (!boss) return true;
+
+    boss.phaseTimer += dt;
+    if (boss.hitFlash > 0) boss.hitFlash = Math.max(0, boss.hitFlash - dt);
+
+    // Turret bosses have their own simple behavior (no phases).
+    if (boss.config.type === 'turret') {
+      return updateTurretBoss(dt);
+    }
+
+    switch (boss.phase) {
+      case 'dps': {
+        // Pursue nearest living player and kill on contact
+        const alive = livingPlayers();
+        if (alive.length > 0) {
+          let best = alive[0], bd = Infinity;
+          for (const pp of alive) {
+            const d2 = (pp.x - boss.x) ** 2 + (pp.y - boss.y) ** 2;
+            if (d2 < bd) { bd = d2; best = pp; }
+          }
+          const dxp = best.x - boss.x, dyp = best.y - boss.y;
+          const dlen = Math.hypot(dxp, dyp) || 1;
+          const desiredVx = (dxp / dlen) * boss.config.speed;
+          const desiredVy = (dyp / dlen) * boss.config.speed;
+          const k = 1 - Math.exp(-dt * BOSS_STEER_RATE);
+          boss.vx += (desiredVx - boss.vx) * k;
+          boss.vy += (desiredVy - boss.vy) * k;
+          boss.x += boss.vx * dt;
+          boss.y += boss.vy * dt;
+          boss.x = Math.max(boss.config.radius, Math.min(W - boss.config.radius, boss.x));
+          boss.y = Math.max(boss.config.radius, Math.min(H - boss.config.radius, boss.y));
+        }
+
+        // Lethal contact with any living player
+        for (const p of players) {
+          if (!p.alive) continue;
+          const dx = p.x - boss.x, dy = p.y - boss.y;
+          const rr = boss.config.radius + PLAYER_RADIUS;
+          if (dx * dx + dy * dy <= rr * rr) {
+            if (p.powerupTimers.invuln <= 0) {
+              killPlayer(p);
+              if (livingPlayers().length === 0) { endGame(); return false; }
+            } else {
+              // Invulnerable contact chips the boss
+              damageBoss(1);
+              if (!boss) return false;
+            }
+          }
+        }
+
+        if (boss.phaseTimer >= BOSS_DPS_DURATION) {
+          boss.phase = 'sinking';
+          boss.phaseTimer = 0;
+        }
+        break;
+      }
+
+      case 'sinking': {
+        if (boss.phaseTimer >= BOSS_SINK_DURATION) {
+          startBossWave(1);
+        }
+        break;
+      }
+
+      case 'wave1-warn':
+      case 'wave2-warn': {
+        if (boss.phaseTimer >= BOSS_WAVE_WARNING) {
+          releaseYellowDotsToMove();
+          boss.phase = boss.phase === 'wave1-warn' ? 'wave1-move' : 'wave2-move';
+          boss.phaseTimer = 0;
+        }
+        break;
+      }
+
+      case 'wave1-move':
+      case 'wave2-move': {
+        updateYellowDots(dt);
+        // When wave fully exits, advance
+        if (!anyYellowDotsOnScreen()) {
+          yellowDots = [];
+          if (boss.phase === 'wave1-move') {
+            startBossWave(2);
+          } else {
+            boss.phase = 'emerging';
+            boss.phaseTimer = 0;
+          }
+        }
+        break;
+      }
+
+      case 'emerging': {
+        if (boss.phaseTimer >= BOSS_EMERGE_DURATION) {
+          boss.phase = 'dps';
+          boss.phaseTimer = 0;
+        }
+        break;
+      }
+    }
+
+    return true;
+  }
+
+  function startBossWave(which) {
+    // Pick one horizontal edge (top or bottom) and one vertical edge (left or
+    // right). Each wave = one horizontal wall + one vertical wall moving across.
+    const horizSide = Math.random() < 0.5 ? 'near' : 'far';
+    const vertSide  = Math.random() < 0.5 ? 'near' : 'far';
+    spawnWallWave('horizontal', horizSide);
+    spawnWallWave('vertical',   vertSide);
+    boss.phase = which === 1 ? 'wave1-warn' : 'wave2-warn';
+    boss.phaseTimer = 0;
+  }
+
+  function updateYellowDots(dt) {
+    for (const d of yellowDots) {
+      d.x += d.vx * dt;
+      d.y += d.vy * dt;
+    }
+    // Kill any player touching a yellow dot (respect invuln)
+    for (const p of players) {
+      if (!p.alive || p.powerupTimers.invuln > 0) continue;
+      for (const d of yellowDots) {
+        const dx = p.x - d.x, dy = p.y - d.y;
+        const rr = YELLOW_DOT_RADIUS + PLAYER_RADIUS;
+        if (dx * dx + dy * dy <= rr * rr) {
+          killPlayer(p);
+          if (livingPlayers().length === 0) { endGame(); return; }
+          break;
+        }
+      }
+    }
+  }
+
+  // Turret boss: stationary, shoots on timer, arena windmill spins and kills,
+  // per-threshold vortex volleys happen in damageBoss().
+  function updateTurretBoss(dt) {
+    // Fire red-dot trackers on interval
+    boss.shotTimer -= dt;
+    if (boss.shotTimer <= 0) {
+      fireBossRedDot();
+      boss.shotTimer = boss.config.shotInterval;
+    }
+    // Arena windmill (centered, sweeps the whole arena)
+    if (windmill) updateWindmill(dt);
+    // Vortex dots launched from corners pursue with their per-boss speedMult
+    updateBossVortexes(dt);
+    if (!boss) return false; // endGame may have nulled things
+    // Boss-spawned enemies (red dots) — same mechanics as regular enemies,
+    // but their kills don't feed the nuke counter.
+    updateBossEnemies(dt);
+    return boss !== null;
+  }
+
+  // Move and collide the vortexes during a boss fight. Each vortex pursues the
+  // nearest living player at VORTEX_SPEED * v.speedMult (default 1 if unset).
+  function updateBossVortexes(dt) {
+    for (let vi = vortexes.length - 1; vi >= 0; vi--) {
+      const v = vortexes[vi];
+      if (v.hitFlash > 0) v.hitFlash = Math.max(0, v.hitFlash - dt);
+      v.age = (v.age || 0) + dt;
+
+      const mult = v.speedMult || 1;
+      const alive = livingPlayers();
+      if (alive.length > 0) {
+        let best = alive[0], bd = Infinity;
+        for (const pp of alive) {
+          const d2 = (pp.x - v.x) ** 2 + (pp.y - v.y) ** 2;
+          if (d2 < bd) { bd = d2; best = pp; }
+        }
+        const dxp = best.x - v.x, dyp = best.y - v.y;
+        const dlen = Math.hypot(dxp, dyp) || 1;
+        const desiredVx = (dxp / dlen) * VORTEX_SPEED * mult;
+        const desiredVy = (dyp / dlen) * VORTEX_SPEED * mult;
+        const k = 1 - Math.exp(-dt * VORTEX_STEER_RATE);
+        v.vx += (desiredVx - v.vx) * k;
+        v.vy += (desiredVy - v.vy) * k;
+        v.x += v.vx * dt;
+        v.y += v.vy * dt;
+        v.x = Math.max(VORTEX_RADIUS, Math.min(W - VORTEX_RADIUS, v.x));
+        v.y = Math.max(VORTEX_RADIUS, Math.min(H - VORTEX_RADIUS, v.y));
+      }
+
+      // Lethal player contact (respects invuln like elsewhere)
+      let destroyed = false;
+      for (const p of players) {
+        if (!p.alive) continue;
+        const dx = p.x - v.x, dy = p.y - v.y;
+        if (dx * dx + dy * dy <= (VORTEX_RADIUS + PLAYER_RADIUS) ** 2) {
+          if (p.powerupTimers.invuln <= 0) {
+            killPlayer(p);
+            if (livingPlayers().length === 0) { endGame(); return; }
+          } else {
+            v.hp -= 1;
+            v.hitFlash = HIT_FLASH_DURATION;
+            if (v.hp <= 0) {
+              spawnParticles(v.x, v.y, TAG_PURPLE, 30, 100, 360, 0.5, 1.0);
+              audio.pop();
+              vortexes.splice(vi, 1);
+              destroyed = true;
+              break;
+            }
+          }
+        }
+      }
+      if (destroyed) continue;
+    }
+  }
+
+  // Move and collide boss-spawned enemies (red tracker dots). Invulnerable
+  // contact kills the enemy without feeding the nuke counter.
+  function updateBossEnemies(dt) {
+    for (let i = enemies.length - 1; i >= 0; i--) {
+      const e = enemies[i];
+      if (e.hitFlash > 0) e.hitFlash = Math.max(0, e.hitFlash - dt);
+
+      // Tracker steering toward nearest living player (see note in
+      // normal-mode copy of this loop about why we renormalize).
+      if (e.tracker) {
+        const alive = livingPlayers();
+        if (alive.length > 0) {
+          let best = alive[0], bd = Infinity;
+          for (const pp of alive) {
+            const d2 = (pp.x - e.x) ** 2 + (pp.y - e.y) ** 2;
+            if (d2 < bd) { bd = d2; best = pp; }
+          }
+          const targetSpeed = e.speed || Math.hypot(e.vx, e.vy) || 1;
+          const dxp = best.x - e.x, dyp = best.y - e.y;
+          const dlen = Math.hypot(dxp, dyp) || 1;
+          const desiredVx = (dxp / dlen) * targetSpeed;
+          const desiredVy = (dyp / dlen) * targetSpeed;
+          const k = 1 - Math.exp(-dt * TRACKER_TURN_RATE);
+          e.vx += (desiredVx - e.vx) * k;
+          e.vy += (desiredVy - e.vy) * k;
+          const m = Math.hypot(e.vx, e.vy) || 1;
+          e.vx = (e.vx / m) * targetSpeed;
+          e.vy = (e.vy / m) * targetSpeed;
+        }
+      }
+
+      e.x += e.vx * dt;
+      e.y += e.vy * dt;
+      if (e.x < -60 || e.x > W + 60 || e.y < -60 || e.y > H + 60) {
+        enemies.splice(i, 1);
+        continue;
+      }
+
+      // Collide with each living player
+      let consumed = false;
+      for (const p of players) {
+        if (!p.alive) continue;
+        const dx = e.x - p.x, dy = e.y - p.y;
+        if (dx * dx + dy * dy <= (e.r + PLAYER_RADIUS) * (e.r + PLAYER_RADIUS)) {
+          if (p.powerupTimers.invuln <= 0) {
+            killPlayer(p);
+            if (livingPlayers().length === 0) { endGame(); return; }
+            spawnParticles(e.x, e.y, getEnemyColorFor(e), 10, 60, 240, 0.3, 0.55);
+            enemies.splice(i, 1);
+            consumed = true;
+            break;
+          } else {
+            spawnParticles(e.x, e.y, getEnemyColorFor(e), 14, 80, 280, 0.35, 0.6);
+            audio.pop();
+            enemies.splice(i, 1);
+            // Boss-mode kills intentionally skip recordKill()
+            consumed = true;
+            break;
+          }
+        }
+      }
+      if (consumed) continue;
+    }
+  }
+
+  function damageBoss(amount) {
+    if (!boss) return;
+    boss.hp -= amount;
+    boss.hitFlash = HIT_FLASH_DURATION;
+
+    // Check HP thresholds for turret boss vortex launches.
+    // Each threshold that the boss drops below spawns one vortex volley.
+    if (boss.config.type === 'turret' && boss.thresholdsRemaining) {
+      while (boss.thresholdsRemaining.length > 0 && boss.hp <= boss.thresholdsRemaining[0]) {
+        boss.thresholdsRemaining.shift();
+        launchBossVortexes(boss);
+      }
+    }
+
+    if (boss.hp <= 0) {
+      // Explosion burst at boss position
+      spawnParticles(boss.x, boss.y, boss.config.color, 60, 120, 420, 0.6, 1.2);
+      spawnParticles(boss.x, boss.y, '#ffffff', 30, 80, 280, 0.4, 0.8);
+      audio.sweep();
+      audio.pop();
+      bossDefeatedCount += 1;
+
+      // Clean up spent entities so the next boss gets a clean arena
+      enemies = [];
+      vortexes = [];
+      slowfires = [];
+      yellowDots = [];
+      windmill = null;
+      boss = null;
+
+      // Advance or declare victory
+      if (currentBossIndex + 1 < BOSSES.length) {
+        currentBossIndex += 1;
+        addToast(W / 2, H / 2 - 20, 'BOSS ' + BOSSES[currentBossIndex].id, '#ffffff');
+        // Revive any dead players; reposition everyone to start
+        for (let i = 0; i < players.length; i++) {
+          placePlayerAtStart(players[i], i, players.length);
+        }
+        boss = spawnBoss(currentBossIndex);
+        updateBossHud();
+      } else {
+        setState('boss-victory');
+      }
+    }
+  }
+
+  // Turret boss: fire one red-dot tracker at the nearest living player.
+  // The dot lives in the regular `enemies` array; tracker: true gives homing
+  // behavior, and the speed multiplier is pre-baked into the initial velocity.
+  function fireBossRedDot() {
+    if (!boss || boss.config.type !== 'turret') return;
+    const alive = livingPlayers();
+    if (alive.length === 0) return;
+    const target = alive[Math.floor(Math.random() * alive.length)];
+    const dx = target.x - boss.x;
+    const dy = target.y - boss.y;
+    const d = Math.hypot(dx, dy) || 1;
+    const baseSpeed = ENEMY_SPEED_MIN + Math.random() * (ENEMY_SPEED_MAX - ENEMY_SPEED_MIN);
+    const speed = baseSpeed * (boss.config.projectileSpeedMult || 1) * TRACKER_SPEED_MULT;
+    enemies.push({
+      x: boss.x + (dx / d) * (boss.config.radius + 8),
+      y: boss.y + (dy / d) * (boss.config.radius + 8),
+      vx: (dx / d) * speed,
+      vy: (dy / d) * speed,
+      r: ENEMY_RADIUS,
+      hp: 1,
+      tracker: true,
+      speed,            // target magnitude, preserved during turning
+      hitFlash: 0,
+    });
+    audio.blip(420 + Math.random() * 100);
+  }
+
+  // Spawn one vortex per "other" corner (3 for a corner-placed turret boss).
+  // Each has its own 10 HP and a faster pursuit speed per boss config.
+  function launchBossVortexes(b) {
+    const corners = cornersExcluding(b.cornerId || 'top-right');
+    const speedMult = b.config.vortexSpeedMult || 1;
+    for (const c of corners) {
+      vortexes.push({
+        x: c.x,
+        y: c.y,
+        vx: 0,
+        vy: 0,
+        age: 0,
+        hp: VORTEX_HP,
+        hitFlash: 0,
+        speedMult, // read by updateBossVortexes to scale pursuit velocity
+      });
+      spawnParticles(c.x, c.y, TAG_PURPLE, 14, 80, 280, 0.3, 0.6);
+    }
+  }
+
+  function drawInvulnAura(p) {
+    if (!p || !p.alive || p.powerupTimers.invuln <= 0) return;
+    // During the revive fade-in, suppress the gold invuln ring so the fade
+    // effect reads clearly. Once the fade completes and reviveFade is 0, the
+    // normal invuln ring takes over for any remaining shield time (typically
+    // expires simultaneously since both are 3s, but picking up a gold star
+    // during the fade would extend it past the fade).
+    if (p.reviveFade > 0) return;
+    const t = p.powerupTimers.invuln / POWERUP_DURATION;    // 1 → 0 as it expires
+    const now = performance.now() / 1000;
+    const pulse = 1 + Math.sin(now * 6) * 0.08;
+    const r = (PLAYER_RADIUS + 10) * pulse;
+
+    // Fading ring — intact at full duration, flickers in last second
+    const flicker = p.powerupTimers.invuln < 1 ? (0.5 + 0.5 * Math.sin(now * 30)) : 1;
+
+    ctx.save();
+    ctx.strokeStyle = hexToRgba(POWERUP_GOLD, 0.8 * flicker);
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    // Countdown arc from the top, clockwise
+    ctx.arc(p.x, p.y, r, -Math.PI / 2, -Math.PI / 2 + t * Math.PI * 2);
+    ctx.stroke();
+
+    // Full subtle ring underneath for visibility
+    ctx.strokeStyle = hexToRgba(POWERUP_GOLD, 0.18 * flicker);
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // ---------- Gamepad ----------
+  let gamepadIndex = null;
+  function refreshPadStatus() {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    gamepadIndex = null;
+    for (let i = 0; i < pads.length; i++) {
+      if (pads[i]) { gamepadIndex = i; break; }
+    }
+    if (gamepadIndex !== null) {
+      const gp = pads[gamepadIndex];
+      padStatusEl.textContent = 'Controller: ' + (gp.id || 'connected').slice(0, 48);
+      padStatusEl.classList.add('connected');
+    } else {
+      padStatusEl.textContent = 'No controller detected — using keyboard + mouse';
+      padStatusEl.classList.remove('connected');
+    }
+  }
+  window.addEventListener('gamepadconnected', refreshPadStatus);
+  window.addEventListener('gamepaddisconnected', refreshPadStatus);
+  refreshPadStatus();
+
+  function getGamepad() {
+    if (!navigator.getGamepads) return null;
+    const pads = navigator.getGamepads();
+    if (gamepadIndex !== null && pads[gamepadIndex]) return pads[gamepadIndex];
+    for (const p of pads) { if (p) return p; }
+    return null;
+  }
+  function dz(v) { return Math.abs(v) < STICK_DEADZONE ? 0 : v; }
+
+  // ---------- Menu navigation (controller) ----------
+  // Button indices on standard mapping: 0=A, 1=B, 9=Start, 12=DpadUp, 13=DpadDown
+  let focusIndex = 0;
+  const prevPad = {
+    a: false, b: false, start: false,
+    up: false, down: false,
+  };
+
+  function getFocusableButtons(screenKey) {
+    const screen = screens[screenKey];
+    if (!screen) return [];
+    return Array.from(screen.querySelectorAll('.menu-btn'));
+  }
+
+  function updateFocusHighlight() {
+    // Clear focus class across all menu buttons
+    document.querySelectorAll('.menu-btn.focused').forEach(b => b.classList.remove('focused'));
+    // Apply to the focused one, if not disabled
+    const btns = getFocusableButtons(state);
+    const btn = btns[focusIndex];
+    if (btn && !btn.disabled) btn.classList.add('focused');
+  }
+
+  function initFocusForState(s) {
+    const btns = getFocusableButtons(s);
+    focusIndex = 0;
+    for (let i = 0; i < btns.length; i++) {
+      if (!btns[i].disabled) { focusIndex = i; break; }
+    }
+    updateFocusHighlight();
+  }
+
+  function moveFocus(dir) {
+    const btns = getFocusableButtons(state);
+    if (btns.length === 0) return;
+    let next = focusIndex;
+    for (let i = 0; i < btns.length; i++) {
+      next = (next + dir + btns.length) % btns.length;
+      if (!btns[next].disabled) break;
+    }
+    focusIndex = next;
+    updateFocusHighlight();
+  }
+
+  function activateFocused() {
+    const btns = getFocusableButtons(state);
+    const btn = btns[focusIndex];
+    if (btn && !btn.disabled) btn.click();
+  }
+
+  // Start / ESC toggle — same semantics as the existing ESC handler
+  function handleStartPress() {
+    if (state === 'playing')             setState('paused');
+    else if (state === 'paused')         setState('playing');
+    else if (state === 'settings-pause') setState('paused');
+    else if (state === 'settings-main')  setState('main');
+    else if (state === 'leaderboard')    setState('main');
+  }
+
+  function pollMenuInput() {
+    const gp = getGamepad();
+    if (!gp) return;
+
+    // Button edge detection
+    const aNow     = !!(gp.buttons[0]  && gp.buttons[0].pressed);
+    const bNow     = !!(gp.buttons[1]  && gp.buttons[1].pressed);
+    const startNow = !!(gp.buttons[9]  && gp.buttons[9].pressed);
+    const dpadUp   = !!(gp.buttons[12] && gp.buttons[12].pressed);
+    const dpadDown = !!(gp.buttons[13] && gp.buttons[13].pressed);
+
+    // Navigation: combine D-pad and left stick Y into up/down "pulses"
+    const ly = gp.axes[1] || 0;
+    const upNow   = dpadUp   || ly < -MENU_STICK_THRESHOLD;
+    const downNow = dpadDown || ly >  MENU_STICK_THRESHOLD;
+
+    // Start: pause / resume / back-out (edge-triggered)
+    if (startNow && !prevPad.start) {
+      handleStartPress();
+    }
+
+    // Menu-only inputs (A to select, up/down to navigate)
+    const inMenu = state !== 'playing' && state !== 'dying';
+    if (inMenu) {
+      if (aNow && !prevPad.a) {
+        activateFocused();
+      }
+      if (upNow && !prevPad.up)     moveFocus(-1);
+      if (downNow && !prevPad.down) moveFocus(1);
+    }
+
+    prevPad.a = aNow;
+    prevPad.b = bNow;
+    prevPad.start = startNow;
+    prevPad.up = upNow;
+    prevPad.down = downNow;
+  }
+
+  // ---------- Setup ----------
+  // ---------- Players ----------
+  function createPlayer(i) {
+    return {
+      index: i,
+      x: W / 2,
+      y: H / 2,
+      color: i === 0 ? PLAYER_COLOR_1 : PLAYER_COLOR_2,
+      alive: true,
+      powerupTimers: { bigger: 0, faster: 0, piercing: 0, invuln: 0, doubleshot: 0 },
+      reviveTimer: 0,   // counts down while dead; on 0, player respawns
+      reviveFade: 0,    // counts down after respawn; drives fade-in alpha
+      aim: { x: 0, y: 0, active: false },
+      aimFromGamepad: false,
+      shootCooldown: 0,
+      inputSource: { type: 'keyboard' }, // set in assignInputSources
+    };
+  }
+
+  function placePlayerAtStart(p, i, totalPlayers) {
+    // Boss fights: spawn at bottom-center so players don't land inside the
+    // arena windmill (Boss #2) or under a pursuing Boss (#1).
+    // Normal mode: spawn at arena center.
+    const baseY = (gameMode === 'boss') ? H - 70 : H / 2;
+    if (totalPlayers === 1) {
+      p.x = W / 2; p.y = baseY;
+    } else {
+      p.x = W / 2 + (i === 0 ? -28 : 28);
+      p.y = baseY;
+    }
+    p.aim = { x: 0, y: 0, active: false };
+    p.shootCooldown = 0;
+    p.alive = true;
+    p.reviveTimer = 0;
+    p.reviveFade = 0;
+  }
+
+  function connectedGamepadIndices() {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    const out = [];
+    for (let i = 0; i < pads.length; i++) if (pads[i]) out.push(i);
+    return out;
+  }
+
+  // Assign each player an input source. Returns true on success, false if we
+  // don't have enough inputs (which currently only matters when starting 2P
+  // with zero controllers connected — the caller should block in that case).
+  function assignInputSources(count) {
+    const padIdx = connectedGamepadIndices();
+    const sources = [];
+    if (count === 1) {
+      sources.push(padIdx.length > 0
+        ? { type: 'gamepad', index: padIdx[0] }
+        : { type: 'keyboard' });
+    } else {
+      if (padIdx.length >= 2) {
+        sources.push({ type: 'gamepad', index: padIdx[0] });
+        sources.push({ type: 'gamepad', index: padIdx[1] });
+      } else if (padIdx.length === 1) {
+        sources.push({ type: 'gamepad', index: padIdx[0] });
+        sources.push({ type: 'keyboard' });
+      } else {
+        // No controllers at all — 2P is not really playable; caller should warn.
+        return null;
+      }
+    }
+    return sources;
+  }
+
+  function newGame(count = 1) {
+    gameMode = 'normal';
+    numPlayers = count;
+    level = 1;
+    tagSequence = [];
+    toasts = [];
+    nuke = null;
+    totalKills = 0;
+    nextNukeAt = NUKE_KILL_THRESHOLD;
+    updateKillsHud();
+    resetPowerupState();
+    const sources = assignInputSources(count);
+    players = [];
+    for (let i = 0; i < count; i++) {
+      const p = createPlayer(i);
+      if (sources) p.inputSource = sources[i];
+      players.push(p);
+    }
+    startLevel();
+  }
+
+  function startBossGame(count = 1) {
+    gameMode = 'boss';
+    numPlayers = count;
+    level = 1;
+    tagSequence = [];
+    tagCounts = {};
+    activeTags = new Set();
+    toasts = [];
+    nuke = null;
+    totalKills = 0;
+    nextNukeAt = NUKE_KILL_THRESHOLD;
+    currentBossIndex = 0;
+    bossDefeatedCount = 0;
+    // Clear all normal-mode entities
+    enemies = [];
+    particles = [];
+    projectiles = [];
+    portal = null;
+    vortexes = [];
+    slowfires = [];
+    walls = [];
+    windmill = null;
+    yellowDots = [];
+    powerup = null;
+    powerupTimer = POWERUP_SPAWN_INTERVAL;
+    timeLeft = 0;
+    spawnTimer = 0;
+    phase = 'combat'; // boss mode treats the whole fight as an active combat phase
+    phaseTimer = 0;
+    resetPowerupState();
+    const sources = assignInputSources(count);
+    if (!sources) {
+      padStatusEl.textContent = '2-Player needs at least one controller connected';
+      return;
+    }
+    players = [];
+    for (let i = 0; i < count; i++) {
+      const p = createPlayer(i);
+      if (sources) p.inputSource = sources[i];
+      players.push(p);
+      placePlayerAtStart(p, i, count);
+    }
+    boss = spawnBoss(currentBossIndex);
+    updateBossHud();
+    setState('playing');
+    audio.start();
+  }
+
+  function updateBossHud() {
+    if (!boss || !bossHpTextEl || !bossHpFillEl) return;
+    bossHpTextEl.textContent = Math.max(0, boss.hp) + ' / ' + boss.maxHp;
+    const pct = Math.max(0, Math.min(100, (boss.hp / boss.maxHp) * 100));
+    bossHpFillEl.style.width = pct + '%';
+  }
+
+  function startLevel() {
+    enemies = [];
+    particles = [];
+    projectiles = [];
+    portal = null;
+    vortexes = [];
+    slowfires = [];
+    walls = [];
+    windmill = null;
+    powerup = null;
+    powerupTimer = POWERUP_SPAWN_INTERVAL;
+    vortexSpawnTimer = VORTEX_SPAWN_INTERVAL;
+    nuke = null;
+    timeLeft = LEVEL_DURATION;
+    spawnTimer = 0.6;
+    phase = 'intro';
+    phaseTimer = 0;
+
+    // Respawn players to starting positions, revive the dead.
+    // Powerup timers decay naturally; they carry across levels only while active.
+    for (let i = 0; i < players.length; i++) placePlayerAtStart(players[i], i, players.length);
+
+    // Build the tag sequence up to (level - 1) entries. Levels 2..8 introduce
+    // tags in TAG_INTRO_ORDER one at a time; levels 9+ stack random existing
+    // tags. tagCounts records how many times each tag appears in the sequence.
+    const needed = Math.max(0, level - 1);
+    ensureSequenceLength(needed);
+    tagCounts = {};
+    for (let i = 0; i < needed; i++) {
+      const t = tagSequence[i];
+      tagCounts[t] = (tagCounts[t] || 0) + 1;
+    }
+    activeTags = new Set(Object.keys(tagCounts));
+    if (activeTags.has('vortex'))   spawnVortexes(getTagCount('vortex'));
+    if (activeTags.has('slowfire')) spawnSlowfires(getTagCount('slowfire'));
+    if (activeTags.has('walls'))    spawnWalls(WALL_COUNT + getTagCount('walls') - 1);
+    if (activeTags.has('windmill')) spawnWindmill(getTagCount('windmill'));
+    updateTagsHud();
+  }
+
+  function spawnEnemy() {
+    const alive = livingPlayers();
+    if (alive.length === 0) return;
+    const target = alive[Math.floor(Math.random() * alive.length)];
+    const edge = Math.floor(Math.random() * 4);
+    let x, y;
+    const r = activeTags.has('swarm') ? ENEMY_RADIUS * SWARM_ENEMY_SCALE : ENEMY_RADIUS;
+    if (edge === 0)      { x = Math.random() * W; y = -r; }
+    else if (edge === 1) { x = W + r; y = Math.random() * H; }
+    else if (edge === 2) { x = Math.random() * W; y = H + r; }
+    else                 { x = -r; y = Math.random() * H; }
+    const jitter = 40;
+    const tx = target.x + (Math.random() - 0.5) * jitter;
+    const ty = target.y + (Math.random() - 0.5) * jitter;
+    const dx = tx - x, dy = ty - y;
+    const d = Math.hypot(dx, dy) || 1;
+    const isTracker = Math.random() < Math.min(1, TRACKER_SPAWN_FRACTION * getTagCount('tracker'));
+    let speed = ENEMY_SPEED_MIN + Math.random() * (ENEMY_SPEED_MAX - ENEMY_SPEED_MIN);
+    if (getTagCount('swarm') > 0) speed *= SWARM_SPEED_MULT;
+    if (isTracker)                speed *= TRACKER_SPEED_MULT;
+    enemies.push({
+      x, y,
+      vx: (dx / d) * speed, vy: (dy / d) * speed,
+      r,
+      hp: 1 + getTagCount('tanky'),
+      tracker: isTracker,
+      speed,            // target magnitude — trackers renormalize to this after steering
+      hitFlash: 0,
+    });
+  }
+
+  function spawnParticles(x, y, color, count, speedMin = 60, speedMax = 240, lifeMin = 0.6, lifeMax = 1.0) {
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = speedMin + Math.random() * (speedMax - speedMin);
+      particles.push({
+        x, y,
+        vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+        life: lifeMin + Math.random() * (lifeMax - lifeMin),
+        age: 0,
+        color
+      });
+    }
+  }
+
+  function fireProjectile(p) {
+    if (!p || !p.aim.active) return;
+    const r = p.powerupTimers.bigger > 0 ? PROJECTILE_RADIUS * BIGGER_BULLET_SCALE : PROJECTILE_RADIUS;
+    const pierce = p.powerupTimers.piercing > 0 ? PIERCING_COUNT : 0;
+
+    // Double shot fires two projectiles angled ±DOUBLESHOT_SPREAD from the aim
+    const doubled = p.powerupTimers.doubleshot > 0;
+    const baseAngle = Math.atan2(p.aim.y, p.aim.x);
+    const offsets = doubled ? [-DOUBLESHOT_SPREAD, DOUBLESHOT_SPREAD] : [0];
+
+    for (const off of offsets) {
+      const a = baseAngle + off;
+      const dx = Math.cos(a), dy = Math.sin(a);
+      projectiles.push({
+        x: p.x + dx * (PLAYER_RADIUS + 2),
+        y: p.y + dy * (PLAYER_RADIUS + 2),
+        vx: dx * PROJECTILE_SPEED,
+        vy: dy * PROJECTILE_SPEED,
+        r,
+        color: p.color,                                                  // colored by firing player
+        pierce,
+        hitCooldown: 0,
+      });
+    }
+    audio.blip(820 + Math.random() * 120);
+    p.shootCooldown = getCurrentCooldown(p);
+  }
+
+  // Each level resets its own ramp (uses time elapsed *in this level*)
+  // Each level resets its own ramp (uses time elapsed *in this level*).
+  // Spawn rate scales with: living player count (each player gets the same pressure)
+  // and level (+5% more enemies per level beyond level 1).
+  function currentSpawnInterval() {
+    const elapsedInLevel = LEVEL_DURATION - timeLeft;
+    const t = Math.min(elapsedInLevel / RAMP_TIME, 1);
+    let base = BASE_SPAWN_INTERVAL + (MIN_SPAWN_INTERVAL - BASE_SPAWN_INTERVAL) * t;
+    const swarmCount = getTagCount('swarm');
+    if (swarmCount > 0) base /= (1 + 0.25 * swarmCount);
+    const alive = Math.max(1, livingPlayers().length);
+    const levelScale = 1 + 0.05 * level; // +5% more spawns per level; Level 1 already at 1.05x
+    return base / alive / levelScale;
+  }
+
+  // ---------- Phase transitions ----------
+  function clearWave() {
+    for (const e of enemies) {
+      spawnParticles(e.x, e.y, getEnemyColorFor(e), 14, 80, 280, 0.35, 0.6);
+    }
+    enemies = [];
+    projectiles = [];
+    for (const v of vortexes) {
+      spawnParticles(v.x, v.y, TAG_PURPLE, 22, 80, 300, 0.5, 0.9);
+    }
+    vortexes = [];
+    for (const s of slowfires) {
+      spawnParticles(s.x, s.y, SLOWFIRE_COLOR, 18, 80, 300, 0.4, 0.8);
+    }
+    slowfires = [];
+    powerup = null; // an uncollected star is cleared with the wave
+    audio.sweep();
+    phase = 'clearing';
+    phaseTimer = 0;
+  }
+
+  function openPortal() {
+    portal = { x: W / 2, y: H / 2, r: PORTAL_RADIUS, age: 0 };
+    phase = 'portal';
+    phaseTimer = 0;
+  }
+
+  function enterPortal() {
+    audio.descend();
+    phase = 'falling';
+    phaseTimer = 0;
+  }
+
+  // ---------- Update ----------
+  function readPlayerMovement(p, gp) {
+    // Returns { mx, my } with magnitude ≤ 1
+    let mx = 0, my = 0;
+    const useKeyboard = p.inputSource.type === 'keyboard';
+    if (gp) {
+      const lx = dz(gp.axes[0] || 0);
+      const ly = dz(gp.axes[1] || 0);
+      if (lx !== 0 || ly !== 0) { mx = lx; my = ly; }
+    }
+    if (mx === 0 && my === 0 && useKeyboard) {
+      if (keys.w) my -= 1;
+      if (keys.s) my += 1;
+      if (keys.a) mx -= 1;
+      if (keys.d) mx += 1;
+      if (mx !== 0 || my !== 0) {
+        const len = Math.hypot(mx, my);
+        mx /= len; my /= len;
+      }
+    } else if (mx !== 0 || my !== 0) {
+      const mag = Math.min(Math.hypot(mx, my), 1);
+      const len = Math.hypot(mx, my) || 1;
+      mx = (mx / len) * mag;
+      my = (my / len) * mag;
+    }
+    return { mx, my };
+  }
+
+  function readPlayerAim(p, gp) {
+    // Updates p.aim and p.aimFromGamepad in place
+    p.aim.active = false;
+    p.aimFromGamepad = false;
+    if (gp) {
+      const rx = dz(gp.axes[2] || 0);
+      const ry = dz(gp.axes[3] || 0);
+      if (rx !== 0 || ry !== 0) {
+        const len = Math.hypot(rx, ry) || 1;
+        p.aim.x = rx / len;
+        p.aim.y = ry / len;
+        p.aim.active = true;
+        p.aimFromGamepad = true;
+      }
+    }
+    if (!p.aim.active && p.inputSource.type === 'keyboard' && mouse.inCanvas) {
+      const dx = mouse.x - p.x;
+      const dy = mouse.y - p.y;
+      const len = Math.hypot(dx, dy);
+      if (len > 1) {
+        p.aim.x = dx / len;
+        p.aim.y = dy / len;
+        p.aim.active = true;
+      }
+    }
+  }
+
+  function getGamepadFor(p) {
+    if (p.inputSource.type !== 'gamepad') return null;
+    if (!navigator.getGamepads) return null;
+    const pads = navigator.getGamepads();
+    return pads[p.inputSource.index] || null;
+  }
+
+  // Boss Gauntlet per-frame loop. Handles player movement, aim, firing,
+  // powerup timers + pickups (gold stars spawn as normal), projectile-vs-boss
+  // collision, and runs the boss phase machine + yellow-dot wave logic.
+  function updatePlayingBoss(dt) {
+    phaseTimer += dt;
+
+    // ----- Revive tick (runs before the "if (!p.alive) continue" gate so that
+    // dead players actually get their reviveTimer decremented). In 2P, when a
+    // player's timer hits 0, revivePlayer brings them back at the start
+    // position with 3s of invuln + fade-in.
+    for (const p of players) {
+      if (!p.alive && p.reviveTimer > 0) {
+        p.reviveTimer -= dt;
+        if (p.reviveTimer <= 0) revivePlayer(p);
+      } else if (p.alive && p.reviveFade > 0) {
+        p.reviveFade = Math.max(0, p.reviveFade - dt);
+      }
+    }
+
+    // ----- Per-player: movement, aim, firing, timer decay -----
+    for (const p of players) {
+      if (!p.alive) continue;
+      const gp = getGamepadFor(p);
+
+      // Movement (no vortex slow or walls in boss mode)
+      const { mx, my } = readPlayerMovement(p, gp);
+      if (mx !== 0 || my !== 0) {
+        p.x += mx * PLAYER_SPEED * dt;
+        p.y += my * PLAYER_SPEED * dt;
+      }
+      p.x = Math.max(PLAYER_RADIUS, Math.min(W - PLAYER_RADIUS, p.x));
+      p.y = Math.max(PLAYER_RADIUS, Math.min(H - PLAYER_RADIUS, p.y));
+
+      // Aim
+      readPlayerAim(p, gp);
+
+      // Shoot cooldown + firing
+      const usingGamepad = p.inputSource.type === 'gamepad';
+      const usingKeyboard = p.inputSource.type === 'keyboard';
+      let wantShoot = false;
+      if (usingGamepad && p.aimFromGamepad) wantShoot = true;
+      if (usingKeyboard && mouse.down) wantShoot = true;
+      p.shootCooldown -= dt;
+      if (wantShoot && p.shootCooldown <= 0 && p.aim.active) {
+        fireProjectile(p);
+      }
+
+      // Powerup timer decay
+      const timers = p.powerupTimers;
+      if (timers.bigger     > 0) timers.bigger     = Math.max(0, timers.bigger     - dt);
+      if (timers.faster     > 0) timers.faster     = Math.max(0, timers.faster     - dt);
+      if (timers.piercing   > 0) timers.piercing   = Math.max(0, timers.piercing   - dt);
+      if (timers.invuln     > 0) timers.invuln     = Math.max(0, timers.invuln     - dt);
+      if (timers.doubleshot > 0) timers.doubleshot = Math.max(0, timers.doubleshot - dt);
+    }
+
+    // ----- Projectiles: move + check boss/enemy/vortex hits -----
+    const shadowPhases = ['wave1-warn', 'wave1-move', 'wave2-warn', 'wave2-move', 'sinking'];
+    for (let i = projectiles.length - 1; i >= 0; i--) {
+      const pr = projectiles[i];
+      pr.x += pr.vx * dt;
+      pr.y += pr.vy * dt;
+      if (pr.hitCooldown > 0) pr.hitCooldown -= dt;
+      if (pr.x < -20 || pr.x > W + 20 || pr.y < -20 || pr.y > H + 20) {
+        projectiles.splice(i, 1);
+        continue;
+      }
+      if (pr.hitCooldown > 0) continue;
+
+      // Boss body
+      if (boss && shadowPhases.indexOf(boss.phase) === -1) {
+        const dx = boss.x - pr.x, dy = boss.y - pr.y;
+        const rr = boss.config.radius + pr.r;
+        if (dx * dx + dy * dy <= rr * rr) {
+          damageBoss(1);
+          if (!boss) {
+            projectiles.splice(i, 1);
+            continue;
+          }
+          spawnParticles(pr.x, pr.y, boss.config.color, 5, 40, 140, 0.2, 0.35);
+          audio.thud();
+          if (pr.pierce > 0) {
+            pr.pierce -= 1;
+            pr.hitCooldown = 0.05;
+          } else {
+            projectiles.splice(i, 1);
+          }
+          continue;
+        }
+      }
+
+      // Boss-spawned enemy dots (destructible red trackers)
+      let hitEnemy = false;
+      for (let j = enemies.length - 1; j >= 0; j--) {
+        const en = enemies[j];
+        const dx = en.x - pr.x, dy = en.y - pr.y;
+        const rr = en.r + pr.r;
+        if (dx * dx + dy * dy <= rr * rr) {
+          en.hp -= 1;
+          if (en.hp <= 0) {
+            spawnParticles(en.x, en.y, getEnemyColorFor(en), 14, 80, 280, 0.35, 0.6);
+            audio.pop();
+            enemies.splice(j, 1);
+            // No recordKill() — boss-mode enemy kills don't feed the nuke counter
+          } else {
+            en.hitFlash = HIT_FLASH_DURATION;
+            spawnParticles(pr.x, pr.y, getEnemyColorFor(en), 5, 40, 140, 0.2, 0.35);
+            audio.thud();
+          }
+          if (pr.pierce > 0) {
+            pr.pierce -= 1;
+            pr.hitCooldown = 0.05;
+          } else {
+            projectiles.splice(i, 1);
+          }
+          hitEnemy = true;
+          break;
+        }
+      }
+      if (hitEnemy) continue;
+
+      // Boss-launched vortex dots (chippable, 10 HP each)
+      if (pr.hitCooldown <= 0) {
+        for (let vi = 0; vi < vortexes.length; vi++) {
+          const v = vortexes[vi];
+          const dx = v.x - pr.x, dy = v.y - pr.y;
+          const rr = VORTEX_RADIUS + pr.r;
+          if (dx * dx + dy * dy <= rr * rr) {
+            v.hp -= 1;
+            if (v.hp <= 0) {
+              spawnParticles(v.x, v.y, TAG_PURPLE, 30, 100, 360, 0.5, 1.0);
+              audio.pop();
+              vortexes.splice(vi, 1);
+            } else {
+              v.hitFlash = HIT_FLASH_DURATION;
+              spawnParticles(pr.x, pr.y, TAG_PURPLE, 6, 40, 140, 0.2, 0.35);
+              audio.thud();
+            }
+            if (pr.pierce > 0) {
+              pr.pierce -= 1;
+              pr.hitCooldown = 0.05;
+            } else {
+              projectiles.splice(i, 1);
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    // ----- Boss phase machine (includes yellow-dot movement + lethal contact) -----
+    const alive = updateBossFight(dt);
+    if (!alive) return; // endGame or victory already transitioned
+
+    // ----- Gold star powerups: spawn + pickup exactly like normal mode -----
+    if (powerup) {
+      powerup.age += dt;
+      for (const p of players) {
+        if (!p.alive) continue;
+        const pdx = p.x - powerup.x, pdy = p.y - powerup.y;
+        const rr = PLAYER_RADIUS + POWERUP_RADIUS;
+        if (pdx * pdx + pdy * pdy <= rr * rr) {
+          pickUpPowerup(powerup, p);
+          break;
+        }
+      }
+    } else {
+      powerupTimer -= dt;
+      if (powerupTimer <= 0) spawnPowerupStar();
+    }
+
+    updateToasts(dt);
+    updateParticles(dt);
+    updateBossHud();
+  }
+
+  function updatePlaying(dt) {
+    if (gameMode === 'boss') {
+      updatePlayingBoss(dt);
+      return;
+    }
+    phaseTimer += dt;
+    if (portal) portal.age += dt;
+
+    // ----- Revive tick: runs before the per-player loop so dead players'
+    // reviveTimer gets decremented. Only tick while in combat — intro/clearing/
+    // portal/falling phases shouldn't consume the timer. In 2P, when it hits 0
+    // the player respawns at start with 3s of invuln + fade-in.
+    if (phase === 'combat') {
+      for (const p of players) {
+        if (!p.alive && p.reviveTimer > 0) {
+          p.reviveTimer -= dt;
+          if (p.reviveTimer <= 0) revivePlayer(p);
+        } else if (p.alive && p.reviveFade > 0) {
+          p.reviveFade = Math.max(0, p.reviveFade - dt);
+        }
+      }
+    }
+
+    // ----- Per-player movement, aim, invuln timer -----
+    for (const p of players) {
+      if (!p.alive) continue;
+      const gp = getGamepadFor(p);
+
+      // Movement (all phases except falling)
+      if (phase !== 'falling') {
+        const { mx, my } = readPlayerMovement(p, gp);
+        if (mx !== 0 || my !== 0) {
+          const speed = PLAYER_SPEED * (isInVortexAura(p) ? VORTEX_SLOW_MULT : 1);
+          p.x += mx * speed * dt;
+          p.y += my * speed * dt;
+        }
+        p.x = Math.max(PLAYER_RADIUS, Math.min(W - PLAYER_RADIUS, p.x));
+        p.y = Math.max(PLAYER_RADIUS, Math.min(H - PLAYER_RADIUS, p.y));
+        // Push out of any wall overlap; re-clamp in case that put us outside
+        if (walls.length > 0) {
+          resolvePlayerWallCollisions(p);
+          p.x = Math.max(PLAYER_RADIUS, Math.min(W - PLAYER_RADIUS, p.x));
+          p.y = Math.max(PLAYER_RADIUS, Math.min(H - PLAYER_RADIUS, p.y));
+        }
+      }
+
+      // Aim (combat + portal only)
+      if (phase === 'combat' || phase === 'portal') {
+        readPlayerAim(p, gp);
+      } else {
+        p.aim.active = false;
+        p.aimFromGamepad = false;
+      }
+
+      // Decay all active powerup timers
+      const timers = p.powerupTimers;
+      if (timers.bigger     > 0) timers.bigger     = Math.max(0, timers.bigger     - dt);
+      if (timers.faster     > 0) timers.faster     = Math.max(0, timers.faster     - dt);
+      if (timers.piercing   > 0) timers.piercing   = Math.max(0, timers.piercing   - dt);
+      if (timers.invuln     > 0) timers.invuln     = Math.max(0, timers.invuln     - dt);
+      if (timers.doubleshot > 0) timers.doubleshot = Math.max(0, timers.doubleshot - dt);
+    }
+
+    // ----- Phase-specific logic -----
+    if (phase === 'intro') {
+      if (phaseTimer >= INTRO_DURATION) {
+        phase = 'combat';
+        phaseTimer = 0;
+      }
+    }
+    else if (phase === 'combat') {
+      timeLeft = Math.max(0, timeLeft - dt);
+
+      // Shooting: each player fires based on their own inputs
+      for (const p of players) {
+        if (!p.alive) continue;
+        const gp = getGamepadFor(p);
+        const usingGamepad = p.inputSource.type === 'gamepad';
+        const usingKeyboard = p.inputSource.type === 'keyboard';
+        let wantShoot = false;
+        if (usingGamepad && p.aimFromGamepad) wantShoot = true;  // twin-stick auto-fire
+        if (usingKeyboard && mouse.down) wantShoot = true;
+        p.shootCooldown -= dt;
+        if (wantShoot && p.shootCooldown <= 0 && p.aim.active) {
+          fireProjectile(p);
+        }
+      }
+
+      // Enemy spawns (scaled by living player count via currentSpawnInterval)
+      if (livingPlayers().length > 0) {
+        spawnTimer -= dt;
+        while (spawnTimer <= 0) {
+          spawnEnemy();
+          spawnTimer += currentSpawnInterval();
+        }
+      }
+
+      // Projectiles
+      for (let i = projectiles.length - 1; i >= 0; i--) {
+        const pr = projectiles[i];
+        pr.x += pr.vx * dt;
+        pr.y += pr.vy * dt;
+        if (pr.hitCooldown > 0) pr.hitCooldown -= dt;
+        if (pr.x < -20 || pr.x > W + 20 || pr.y < -20 || pr.y > H + 20) {
+          projectiles.splice(i, 1);
+          continue;
+        }
+        if (pr.hitCooldown > 0) continue;
+        let removed = false;
+        for (let j = enemies.length - 1; j >= 0; j--) {
+          const en = enemies[j];
+          const dx = en.x - pr.x, dy = en.y - pr.y;
+          const rr = en.r + pr.r;
+          if (dx * dx + dy * dy <= rr * rr) {
+            en.hp -= 1;
+            if (en.hp <= 0) {
+              spawnParticles(en.x, en.y, getEnemyColorFor(en), 14, 80, 280, 0.35, 0.6);
+              audio.pop();
+              enemies.splice(j, 1);
+              recordKill();
+            } else {
+              en.hitFlash = HIT_FLASH_DURATION;
+              spawnParticles(pr.x, pr.y, getEnemyColorFor(en), 5, 40, 140, 0.2, 0.35);
+              audio.thud();
+            }
+            if (pr.pierce > 0) {
+              pr.pierce -= 1;
+              pr.hitCooldown = 0.05;
+            } else {
+              projectiles.splice(i, 1);
+              removed = true;
+            }
+            break;
+          }
+        }
+        if (removed) continue;
+
+        // Projectile vs vortexes (only if it didn't just hit an enemy)
+        if (pr.hitCooldown <= 0) {
+          for (let vi = 0; vi < vortexes.length; vi++) {
+            const v = vortexes[vi];
+            const dx = v.x - pr.x, dy = v.y - pr.y;
+            const rr = VORTEX_RADIUS + pr.r;
+            if (dx * dx + dy * dy <= rr * rr) {
+              v.hp -= 1;
+              if (v.hp <= 0) {
+                spawnParticles(v.x, v.y, TAG_PURPLE, 30, 100, 360, 0.5, 1.0);
+                audio.pop();
+                vortexes.splice(vi, 1);
+              } else {
+                v.hitFlash = HIT_FLASH_DURATION;
+                spawnParticles(pr.x, pr.y, TAG_PURPLE, 6, 40, 140, 0.2, 0.35);
+                audio.thud();
+              }
+              if (pr.pierce > 0) {
+                pr.pierce -= 1;
+                pr.hitCooldown = 0.05;
+              } else {
+                projectiles.splice(i, 1);
+              }
+              break; // projectile interacted with one vortex this frame
+            }
+          }
+        }
+
+        // Projectile vs slowfires (chippable, 10 HP each, non-lethal on contact)
+        if (pr.hitCooldown <= 0) {
+          for (let si = 0; si < slowfires.length; si++) {
+            const s = slowfires[si];
+            const dx = s.x - pr.x, dy = s.y - pr.y;
+            const rr = SLOWFIRE_RADIUS + pr.r;
+            if (dx * dx + dy * dy <= rr * rr) {
+              s.hp -= 1;
+              if (s.hp <= 0) {
+                spawnParticles(s.x, s.y, SLOWFIRE_COLOR, 28, 100, 340, 0.5, 1.0);
+                audio.pop();
+                slowfires.splice(si, 1);
+              } else {
+                s.hitFlash = HIT_FLASH_DURATION;
+                spawnParticles(pr.x, pr.y, SLOWFIRE_COLOR, 6, 40, 140, 0.2, 0.35);
+                audio.thud();
+              }
+              if (pr.pierce > 0) {
+                pr.pierce -= 1;
+                pr.hitCooldown = 0.05;
+              } else {
+                projectiles.splice(i, 1);
+              }
+              break;
+            }
+          }
+        }
+      }
+
+      // Enemy movement + per-player collision
+      for (let i = enemies.length - 1; i >= 0; i--) {
+        const e = enemies[i];
+
+        if (e.hitFlash > 0) e.hitFlash = Math.max(0, e.hitFlash - dt);
+
+        // Tracker steering toward the nearest living player.
+        // NOTE: we lerp toward the desired velocity, then re-normalize to the
+        // entity's stored spawn speed. Without that renormalize step, vector
+        // lerping between different directions shrinks the magnitude each
+        // frame and the tracker effectively freezes in place when circled.
+        if (e.tracker) {
+          const alive = livingPlayers();
+          if (alive.length > 0) {
+            let best = alive[0], bd = Infinity;
+            for (const pp of alive) {
+              const d2 = (pp.x - e.x) ** 2 + (pp.y - e.y) ** 2;
+              if (d2 < bd) { bd = d2; best = pp; }
+            }
+            const targetSpeed = e.speed || Math.hypot(e.vx, e.vy) || 1;
+            const dxp = best.x - e.x, dyp = best.y - e.y;
+            const dlen = Math.hypot(dxp, dyp) || 1;
+            const desiredVx = (dxp / dlen) * targetSpeed;
+            const desiredVy = (dyp / dlen) * targetSpeed;
+            const k = 1 - Math.exp(-dt * TRACKER_TURN_RATE);
+            e.vx += (desiredVx - e.vx) * k;
+            e.vy += (desiredVy - e.vy) * k;
+            // Renormalize to preserve speed while turning
+            const m = Math.hypot(e.vx, e.vy) || 1;
+            e.vx = (e.vx / m) * targetSpeed;
+            e.vy = (e.vy / m) * targetSpeed;
+          }
+        }
+
+        e.x += e.vx * dt;
+        e.y += e.vy * dt;
+        if (e.x < -60 || e.x > W + 60 || e.y < -60 || e.y > H + 60) {
+          enemies.splice(i, 1);
+          continue;
+        }
+
+        // Collide with each living player
+        let consumed = false;
+        for (const p of players) {
+          if (!p.alive) continue;
+          const dx = e.x - p.x, dy = e.y - p.y;
+          if (dx * dx + dy * dy <= (e.r + PLAYER_RADIUS) * (e.r + PLAYER_RADIUS)) {
+            if (p.powerupTimers.invuln <= 0) {
+              killPlayer(p);
+              if (livingPlayers().length === 0) {
+                endGame();
+                return;
+              }
+              // Enemy is consumed on fatal hit for consistency
+              spawnParticles(e.x, e.y, getEnemyColorFor(e), 10, 60, 240, 0.3, 0.55);
+              enemies.splice(i, 1);
+              consumed = true;
+              break;
+            } else {
+              // Invulnerable: pop the enemy
+              spawnParticles(e.x, e.y, getEnemyColorFor(e), 14, 80, 280, 0.35, 0.6);
+              audio.pop();
+              enemies.splice(i, 1);
+              recordKill();
+              consumed = true;
+              break;
+            }
+          }
+        }
+        if (consumed) continue;
+      }
+
+      // Vortexes: each slowly pursues the nearest living player, lethal on contact
+      for (let vi = vortexes.length - 1; vi >= 0; vi--) {
+        const v = vortexes[vi];
+        if (v.hitFlash > 0) v.hitFlash = Math.max(0, v.hitFlash - dt);
+
+        const alive = livingPlayers();
+        if (alive.length > 0) {
+          let best = alive[0], bd = Infinity;
+          for (const pp of alive) {
+            const d2 = (pp.x - v.x) ** 2 + (pp.y - v.y) ** 2;
+            if (d2 < bd) { bd = d2; best = pp; }
+          }
+          const dxp = best.x - v.x, dyp = best.y - v.y;
+          const dlen = Math.hypot(dxp, dyp) || 1;
+          const desiredVx = (dxp / dlen) * VORTEX_SPEED;
+          const desiredVy = (dyp / dlen) * VORTEX_SPEED;
+          const k = 1 - Math.exp(-dt * VORTEX_STEER_RATE);
+          v.vx += (desiredVx - v.vx) * k;
+          v.vy += (desiredVy - v.vy) * k;
+          v.x += v.vx * dt;
+          v.y += v.vy * dt;
+          v.x = Math.max(VORTEX_RADIUS, Math.min(W - VORTEX_RADIUS, v.x));
+          v.y = Math.max(VORTEX_RADIUS, Math.min(H - VORTEX_RADIUS, v.y));
+        }
+
+        // Contact with the dot itself is lethal; invuln destroys it on touch
+        let destroyed = false;
+        for (const p of players) {
+          if (!p.alive) continue;
+          const dx = p.x - v.x, dy = p.y - v.y;
+          if (dx * dx + dy * dy <= (VORTEX_RADIUS + PLAYER_RADIUS) ** 2) {
+            if (p.powerupTimers.invuln <= 0) {
+              killPlayer(p);
+              if (livingPlayers().length === 0) {
+                endGame();
+                return;
+              }
+            } else {
+              // Invulnerable contact chips the vortex
+              v.hp -= 1;
+              v.hitFlash = HIT_FLASH_DURATION;
+              if (v.hp <= 0) {
+                spawnParticles(v.x, v.y, TAG_PURPLE, 30, 100, 360, 0.5, 1.0);
+                audio.pop();
+                vortexes.splice(vi, 1);
+                destroyed = true;
+                break;
+              }
+            }
+          }
+        }
+        if (destroyed) continue;
+      }
+
+      // Vortex reinforcement: while the Vortex tag is active, spawn one new
+      // vortex every VORTEX_SPAWN_INTERVAL seconds of combat time.
+      if (activeTags.has('vortex')) {
+        vortexSpawnTimer -= dt;
+        if (vortexSpawnTimer <= 0) {
+          spawnOneVortex();
+          vortexSpawnTimer = VORTEX_SPAWN_INTERVAL;
+        }
+      }
+
+      // Windmill: rotate and check lethal blade contact
+      if (windmill) updateWindmill(dt);
+
+      // Slowfires: age + hit-flash decay (stationary, no movement)
+      updateSlowfires(dt);
+
+      // Power-up spawn + per-player pickup
+      if (powerup) {
+        powerup.age += dt;
+        for (const p of players) {
+          if (!p.alive) continue;
+          const pdx = p.x - powerup.x, pdy = p.y - powerup.y;
+          const rr = PLAYER_RADIUS + POWERUP_RADIUS;
+          if (pdx * pdx + pdy * pdy <= rr * rr) {
+            pickUpPowerup(powerup, p);
+            break;
+          }
+        }
+      } else {
+        powerupTimer -= dt;
+        if (powerupTimer <= 0) spawnPowerupStar();
+      }
+
+      // Nuke (red star): drop spawns on kill threshold; pick up to clear the board
+      if (nuke) {
+        nuke.age += dt;
+        for (const p of players) {
+          if (!p.alive) continue;
+          const pdx = p.x - nuke.x, pdy = p.y - nuke.y;
+          const rr = PLAYER_RADIUS + NUKE_RADIUS;
+          if (pdx * pdx + pdy * pdy <= rr * rr) {
+            pickUpNuke(p);
+            break;
+          }
+        }
+      }
+
+      // Timer hit zero → clear wave
+      if (timeLeft <= 0) {
+        clearWave();
+      }
+    }
+    else if (phase === 'clearing') {
+      if (phaseTimer >= CLEAR_DURATION) {
+        openPortal();
+      }
+    }
+    else if (phase === 'portal') {
+      // Any living player entering the portal triggers descent
+      for (const p of players) {
+        if (!p.alive) continue;
+        const dx = p.x - portal.x, dy = p.y - portal.y;
+        if (dx * dx + dy * dy <= portal.r * portal.r) {
+          enterPortal();
+          break;
+        }
+      }
+    }
+    else if (phase === 'falling') {
+      if (phaseTimer >= FALL_DURATION) {
+        level += 1;
+        startLevel();
+        return;
+      }
+    }
+
+    // Keep vortex, windmill, and toasts updating regardless of phase
+    if (vortexes.length > 0) {
+      for (const v of vortexes) v.age += dt;
+    }
+    if (windmill && phase !== 'combat') {
+      // Spin only — lethal collision check lives in the combat branch above.
+      windmill.angle += windmill.angularSpeed * dt;
+      if (windmill.angle > Math.PI * 4) windmill.angle -= Math.PI * 2;
+    }
+    updateToasts(dt);
+
+    updateParticles(dt);
+    updateHUD();
+  }
+
+  function killPlayer(p) {
+    p.alive = false;
+    p.powerupTimers = { bigger: 0, faster: 0, piercing: 0, invuln: 0, doubleshot: 0 };
+    spawnParticles(p.x, p.y, p.color, 30);
+    // Start revive timer. In 1P this is a no-op since endGame() will fire
+    // immediately in the caller once livingPlayers().length reaches 0.
+    p.reviveTimer = REVIVE_DELAY;
+    p.reviveFade = 0;
+  }
+
+  // Bring a dead player back at their start position with 3s of invulnerability
+  // and a 3s fade-in animation. Only used in 2P — in 1P the revive timer never
+  // gets a chance to tick because endGame() triggers on death.
+  function revivePlayer(p) {
+    placePlayerAtStart(p, p.index, players.length);
+    p.powerupTimers.invuln = REVIVE_INVULN;   // 3s invuln — reuses existing gameplay checks
+    p.reviveFade = REVIVE_INVULN;             // drives fade-in alpha (same duration)
+    p.reviveTimer = 0;
+    spawnParticles(p.x, p.y, p.color, 18, 80, 240, 0.4, 0.7);
+    audio.sweep();
+  }
+
+  function updateParticles(dt) {
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.age += dt;
+      if (p.age >= p.life) { particles.splice(i, 1); continue; }
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vx *= 0.96;
+      p.vy *= 0.96;
+    }
+  }
+
+  function updateHUD() {
+    levelEl.textContent = level;
+    timeEl.textContent = timeLeft.toFixed(2);
+    timeEl.classList.toggle('low', timeLeft <= 10 && phase === 'combat');
+  }
+
+  function endGame() {
+    lastRunLevel = level;
+    projectiles = [];
+    state = 'dying';
+    setTimeout(() => {
+      if (state !== 'dying') return;
+      if (gameMode === 'boss') {
+        if (bossDeathCountEl) bossDeathCountEl.textContent = bossDefeatedCount;
+        setState('boss-gameover');
+        return;
+      }
+      const lb = currentLeaderboard();
+      if (lb.qualifies(lastRunLevel)) {
+        if (numPlayers === 1) {
+          highScoreLevelEl.textContent = 'LVL ' + lastRunLevel;
+          setState('highscore');
+          const input = document.getElementById('nameInput');
+          input.value = '';
+          document.getElementById('submitScoreBtn').disabled = true;
+          setTimeout(() => input.focus(), 50);
+        } else {
+          document.getElementById('highScoreLevel2P').textContent = 'LVL ' + lastRunLevel;
+          setState('highscore-2p');
+          const i1 = document.getElementById('nameInput1');
+          const i2 = document.getElementById('nameInput2');
+          i1.value = ''; i2.value = '';
+          document.getElementById('submitScoreBtn2P').disabled = true;
+          setTimeout(() => i1.focus(), 50);
+        }
+      } else {
+        finalLevelEl.textContent = 'LVL ' + lastRunLevel;
+        setState('gameover');
+      }
+    }, 500);
+  }
+
+  // ---------- Draw ----------
+  function drawGrid(alpha = 1) {
+    if (alpha <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    const step = 40;
+
+    // Checkerboard shading — alternate cells get a slightly lighter fill.
+    // Helps players read their position against things like the yellow-wall
+    // gaps in the boss fight (gaps are 60px = 1.5 cells wide).
+    ctx.fillStyle = '#141a2a';
+    const cols = Math.ceil(W / step);
+    const rows = Math.ceil(H / step);
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        if ((row + col) % 2 === 0) {
+          ctx.fillRect(col * step, row * step, step, step);
+        }
+      }
+    }
+
+    // Thin grid lines on top — subtle, but sharpen the cell edges.
+    ctx.strokeStyle = '#1d2128';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = step; x < W; x += step) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+    for (let y = step; y < H; y += step) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+    ctx.stroke();
+    ctx.restore();
+  }
+  function hexToRgba(hex, alpha) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  function drawPortal() {
+    if (!portal) return;
+    const age = portal.age;
+    const pulse = 1 + Math.sin(age * 5) * 0.08;
+    const rotation = age * 1.6;
+    const appear = Math.min(1, age / 0.35);
+
+    ctx.save();
+    ctx.translate(portal.x, portal.y);
+    ctx.scale(appear, appear);
+
+    // Outer glow
+    const glowR = portal.r * 2.6;
+    const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, glowR);
+    glow.addColorStop(0, hexToRgba(settings.playerColor, 0.35));
+    glow.addColorStop(1, hexToRgba(settings.playerColor, 0));
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0, 0, glowR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Dark interior (sense of depth)
+    ctx.fillStyle = hexToRgba('#000000', 0.55);
+    ctx.beginPath();
+    ctx.arc(0, 0, portal.r * 0.9 * pulse, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Rotating arcs
+    ctx.rotate(rotation);
+    ctx.strokeStyle = settings.playerColor;
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 3; i++) {
+      const startAngle = (i / 3) * Math.PI * 2;
+      const sweep = Math.PI * 0.45;
+      ctx.beginPath();
+      ctx.arc(0, 0, portal.r * pulse, startAngle, startAngle + sweep);
+      ctx.stroke();
+    }
+    ctx.rotate(-rotation);
+
+    // Counter-rotating inner ring
+    ctx.rotate(-rotation * 1.4);
+    ctx.strokeStyle = hexToRgba(settings.playerColor, 0.7);
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 2; i++) {
+      const startAngle = (i / 2) * Math.PI * 2;
+      const sweep = Math.PI * 0.55;
+      ctx.beginPath();
+      ctx.arc(0, 0, portal.r * 0.55 * pulse, startAngle, startAngle + sweep);
+      ctx.stroke();
+    }
+    ctx.rotate(rotation * 1.4);
+
+    // Bright center
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(0, 0, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function drawFallingOverlay() {
+    if (phase !== 'falling' || !portal) return;
+    const t = Math.min(1, phaseTimer / FALL_DURATION);
+    const eased = t * t;
+    const maxR = Math.hypot(W, H);
+    const r = Math.max(1, eased * 1.15 * maxR);
+    const inner = Math.max(0, r - 70);
+    const grad = ctx.createRadialGradient(portal.x, portal.y, inner, portal.x, portal.y, r);
+    grad.addColorStop(0, 'rgba(0,0,0,1)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function drawIntroOverlay() {
+    if (phase !== 'intro') return;
+    const t = phaseTimer / INTRO_DURATION;
+    let alpha;
+    if (t < 0.15)      alpha = t / 0.15;
+    else if (t < 0.7)  alpha = 1;
+    else               alpha = Math.max(0, 1 - (t - 0.7) / 0.3);
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '600 14px -apple-system, sans-serif';
+    ctx.fillStyle = 'rgba(123, 132, 145, 0.9)';
+    ctx.fillText('— N O D E —', W / 2, H / 2 - 40);
+
+    ctx.font = 'bold 56px -apple-system, sans-serif';
+    ctx.fillStyle = PLAYER_COLOR_1;
+    ctx.fillText('LEVEL ' + level, W / 2, H / 2 + 6);
+    ctx.restore();
+  }
+
+  function drawPlayer() {
+    for (const p of players) {
+      if (!p.alive) continue;
+      drawSinglePlayer(p);
+    }
+  }
+
+  function drawSinglePlayer(p) {
+    let scale = 1;
+    let cx = p.x, cy = p.y;
+    if (phase === 'intro') {
+      const t = Math.min(1, phaseTimer / INTRO_DURATION);
+      scale = Math.min(1, t * 1.3);
+    } else if (phase === 'falling' && portal) {
+      const t = Math.min(1, phaseTimer / FALL_DURATION);
+      scale = Math.max(0, 1 - t * 1.2);
+      cx = portal.x;
+      cy = portal.y;
+    }
+    if (scale <= 0) return;
+
+    // Revive fade-in: during the 3s after respawn, alpha ramps 0 → 1.
+    // Combined with the global ctx.globalAlpha so both the glow and body dim.
+    const fadeAlpha = p.reviveFade > 0
+      ? Math.max(0, 1 - (p.reviveFade / REVIVE_INVULN))
+      : 1;
+
+    ctx.save();
+    ctx.globalAlpha = fadeAlpha;
+
+    const r = PLAYER_RADIUS * scale;
+    const powered = playerHasAnyPowerup(p);
+    const glowColor = powered ? POWERUP_GOLD : p.color;
+    const innerAlpha = powered ? 0.55 : 0.4;
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 3);
+    grad.addColorStop(0, hexToRgba(glowColor, innerAlpha));
+    grad.addColorStop(1, hexToRgba(glowColor, 0));
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    // Grid alpha: fade out during falling, fade in during intro
+    let gridAlpha = 1;
+    if (phase === 'falling') {
+      const t = Math.min(1, phaseTimer / FALL_DURATION);
+      gridAlpha = Math.max(0, 1 - t * 1.4);
+    } else if (phase === 'intro') {
+      const t = Math.min(1, phaseTimer / INTRO_DURATION);
+      gridAlpha = Math.min(1, t * 1.8);
+    }
+    drawGrid(gridAlpha);
+    drawWalls(gridAlpha);
+
+    if (players.length === 0) return;
+
+    // Particles
+    for (const p of particles) {
+      const a = 1 - p.age / p.life;
+      ctx.globalAlpha = a;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Vortex and Slowfire (aura-bearing dots — render below enemies so enemies stay readable on top)
+    drawVortex();
+    drawSlowfires();
+
+    // Windmill (renders above vortexes and walls; below enemies/projectiles/players)
+    drawWindmill(gridAlpha);
+
+    // Boss (below projectiles so impact particles show on top)
+    drawBoss();
+
+    // Enemies — each uses its own color (red for trackers, orange for normals)
+    for (const e of enemies) {
+      const ec = getEnemyColorFor(e);
+      const grad = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, e.r * 3);
+      grad.addColorStop(0, hexToRgba(ec, 0.35));
+      grad.addColorStop(1, hexToRgba(ec, 0));
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, e.r * 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = e.hitFlash > 0 ? '#ffffff' : ec;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Projectiles — colored by the firing player
+    for (const pr of projectiles) {
+      const col = pr.color || PLAYER_COLOR_1;
+      const grad = ctx.createRadialGradient(pr.x, pr.y, 0, pr.x, pr.y, pr.r * 3.5);
+      grad.addColorStop(0, hexToRgba(col, 0.55));
+      grad.addColorStop(1, hexToRgba(col, 0));
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(pr.x, pr.y, pr.r * 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.arc(pr.x, pr.y, pr.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Power-up star (above enemies so it stays visible)
+    drawPowerup();
+    drawNuke();
+
+    // Yellow wall-wave dots (boss mode) — above projectiles so obstacles are obvious
+    drawYellowDots();
+
+    // Portal (under player so entering it looks right)
+    if (portal && (phase === 'portal' || phase === 'falling')) {
+      drawPortal();
+    }
+
+    // Aim indicators — one per player with an active aim direction
+    if ((phase === 'combat' || phase === 'portal') && state === 'playing') {
+      for (const p of players) {
+        if (!p.alive || !p.aim.active) continue;
+        const start = PLAYER_RADIUS + 4;
+        const end = PLAYER_RADIUS + 26;
+        ctx.strokeStyle = hexToRgba(p.color, 0.55);
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(p.x + p.aim.x * start, p.y + p.aim.y * start);
+        ctx.lineTo(p.x + p.aim.x * end, p.y + p.aim.y * end);
+        ctx.stroke();
+        ctx.fillStyle = hexToRgba(p.color, 0.8);
+        ctx.beginPath();
+        ctx.arc(p.x + p.aim.x * (end + 3), p.y + p.aim.y * (end + 3), 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Player bodies + invuln rings
+    if (state === 'playing' || state === 'paused' || state === 'settings-pause') {
+      drawPlayer();
+      for (const p of players) drawInvulnAura(p);
+    }
+
+    // Phase overlays
+    drawFallingOverlay();
+    drawIntroOverlay();
+
+    // Pickup toasts — topmost
+    drawToasts();
+  }
+
+  function loop(now) {
+    const dt = Math.min((now - lastT) / 1000, 0.05);
+    lastT = now;
+    pollMenuInput();
+    if (state === 'playing') updatePlaying(dt);
+    else if (state === 'dying') updateParticles(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  // ---------- State machine / UI ----------
+  const screens = {
+    'main':            document.getElementById('screen-main'),
+    'paused':          document.getElementById('screen-pause'),
+    'settings-main':   document.getElementById('screen-settings-main'),
+    'settings-pause':  document.getElementById('screen-settings-pause'),
+    'leaderboard':     document.getElementById('screen-leaderboard'),
+    'highscore':       document.getElementById('screen-highscore'),
+    'highscore-2p':    document.getElementById('screen-highscore-2p'),
+    'gameover':        document.getElementById('screen-gameover'),
+    'boss-victory':    document.getElementById('screen-boss-victory'),
+    'boss-gameover':   document.getElementById('screen-boss-gameover'),
+    'exit':            document.getElementById('screen-exit'),
+  };
+
+  function setState(newState) {
+    state = newState;
+    for (const key of Object.keys(screens)) {
+      screens[key].classList.toggle('visible', key === newState);
+    }
+    const hudVisible = ['playing', 'paused', 'settings-pause', 'dying'].includes(newState);
+    hudEl.classList.toggle('visible', hudVisible);
+    hudEl.classList.toggle('mode-boss', gameMode === 'boss' && hudVisible);
+    if (newState !== 'playing') {
+      keys.w = keys.a = keys.s = keys.d = false;
+      mouse.down = false;
+    }
+    if (newState === 'leaderboard') renderLeaderboard();
+    if (newState === 'main' || newState === 'gameover') {
+      leaderboardSolo.clearHighlight();
+      leaderboardCoop.clearHighlight();
+    }
+    initFocusForState(newState);
+  }
+
+  function canStart2P() {
+    // Need at least one controller to play 2P coherently
+    return connectedGamepadIndices().length >= 1;
+  }
+
+  async function handleAction(action) {
+    switch (action) {
+      case 'start':
+        newGame(1);
+        audio.start();
+        setState('playing');
+        updateHUD();
+        break;
+      case 'start-2p':
+        if (!canStart2P()) {
+          // Brief toast-on-menu via the in-game toast system isn't visible here;
+          // fall back to the pad-status line so the user gets feedback.
+          padStatusEl.textContent = '2-Player needs at least one controller connected';
+          padStatusEl.classList.remove('connected');
+          break;
+        }
+        newGame(2);
+        audio.start();
+        setState('playing');
+        updateHUD();
+        break;
+      case 'play-again':
+        newGame(numPlayers || 1);
+        audio.start();
+        setState('playing');
+        updateHUD();
+        break;
+      case 'start-boss-1p':
+        startBossGame(1);
+        break;
+      case 'start-boss-2p':
+        if (!canStart2P()) {
+          padStatusEl.textContent = '2-Player needs at least one controller connected';
+          padStatusEl.classList.remove('connected');
+          break;
+        }
+        startBossGame(2);
+        break;
+      case 'boss-replay':
+        startBossGame(numPlayers || 1);
+        break;
+      case 'resume':         setState('playing'); break;
+      case 'settings-main':  setState('settings-main'); break;
+      case 'settings-pause': setState('settings-pause'); break;
+      case 'back-main':      setState('main'); break;
+      case 'back-pause':     setState('paused'); break;
+      case 'leaderboard':    setState('leaderboard'); break;
+      case 'main-menu':
+        audio.stop();
+        players = []; enemies = []; particles = []; projectiles = []; portal = null;
+        vortexes = []; slowfires = []; walls = []; windmill = null; powerup = null; nuke = null; toasts = [];
+        boss = null; yellowDots = [];
+        gameMode = 'normal'; currentBossIndex = 0; bossDefeatedCount = 0;
+        totalKills = 0; nextNukeAt = NUKE_KILL_THRESHOLD;
+        tagCounts = {}; activeTags = new Set();
+        updateTagsHud();
+        updateKillsHud();
+        resetPowerupState();
+        setState('main');
+        break;
+      case 'exit':
+        audio.stop();
+        players = []; enemies = []; particles = []; projectiles = []; portal = null;
+        vortexes = []; slowfires = []; walls = []; windmill = null; powerup = null; nuke = null; toasts = [];
+        boss = null; yellowDots = [];
+        gameMode = 'normal'; currentBossIndex = 0; bossDefeatedCount = 0;
+        totalKills = 0; nextNukeAt = NUKE_KILL_THRESHOLD;
+        tagCounts = {}; activeTags = new Set();
+        updateTagsHud();
+        updateKillsHud();
+        resetPowerupState();
+        setState('exit');
+        break;
+      case 'submit-score':
+        await submitScore();
+        break;
+      case 'submit-score-2p':
+        await submitScore2P();
+        break;
+    }
+  }
+
+  async function submitScore() {
+    const input = document.getElementById('nameInput');
+    const name = input.value.toUpperCase().trim();
+    if (name.length !== 4) return;
+    await leaderboardSolo.addEntry({ name, level: lastRunLevel });
+    finalLevelEl.textContent = 'LVL ' + lastRunLevel;
+    setState('gameover');
+  }
+
+  async function submitScore2P() {
+    const i1 = document.getElementById('nameInput1');
+    const i2 = document.getElementById('nameInput2');
+    const n1 = i1.value.toUpperCase().trim();
+    const n2 = i2.value.toUpperCase().trim();
+    if (n1.length !== 4 || n2.length !== 4) return;
+    await leaderboardCoop.addEntry({ name1: n1, name2: n2, level: lastRunLevel });
+    finalLevelEl.textContent = 'LVL ' + lastRunLevel;
+    setState('gameover');
+  }
+
+  document.querySelectorAll('[data-action]').forEach(btn => {
+    btn.addEventListener('click', () => handleAction(btn.dataset.action));
+  });
+
+  // ---------- Keyboard ----------
+  window.addEventListener('keydown', e => {
+    const k = e.key.toLowerCase();
+    if (state === 'highscore') {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (!document.getElementById('submitScoreBtn').disabled) submitScore();
+      }
+      return;
+    }
+    if (state === 'highscore-2p') {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const i1 = document.getElementById('nameInput1');
+        const i2 = document.getElementById('nameInput2');
+        // Tab-like: Enter on input 1 jumps to input 2; Enter on input 2 submits if ready
+        if (document.activeElement === i1 && i1.value.length === 4) {
+          i2.focus();
+        } else if (!document.getElementById('submitScoreBtn2P').disabled) {
+          submitScore2P();
+        }
+      }
+      return;
+    }
+    if (k === 'escape') {
+      if (state === 'playing')        { setState('paused'); e.preventDefault(); return; }
+      if (state === 'paused')         { setState('playing'); e.preventDefault(); return; }
+      if (state === 'settings-pause') { setState('paused'); e.preventDefault(); return; }
+      if (state === 'settings-main')  { setState('main'); e.preventDefault(); return; }
+      if (state === 'leaderboard')    { setState('main'); e.preventDefault(); return; }
+    }
+    const mapped = KEY_MAP[k];
+    if (mapped && state === 'playing') { keys[mapped] = true; e.preventDefault(); }
+  });
+  window.addEventListener('keyup', e => {
+    const k = e.key.toLowerCase();
+    const mapped = KEY_MAP[k];
+    if (mapped) keys[mapped] = false;
+  });
+
+  // ---------- Mouse ----------
+  function updateMouseFromEvent(e) {
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    mouse.y = (e.clientY - rect.top) * (canvas.height / rect.height);
+  }
+  canvas.addEventListener('mousemove', e => { updateMouseFromEvent(e); mouse.inCanvas = true; });
+  canvas.addEventListener('mouseenter', e => { updateMouseFromEvent(e); mouse.inCanvas = true; });
+  canvas.addEventListener('mouseleave', () => { mouse.inCanvas = false; });
+  canvas.addEventListener('mousedown', e => {
+    if (e.button === 0 && state === 'playing') { mouse.down = true; e.preventDefault(); }
+  });
+  window.addEventListener('mouseup', e => { if (e.button === 0) mouse.down = false; });
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+  // ---------- Name input ----------
+  const nameInput = document.getElementById('nameInput');
+  const submitBtn = document.getElementById('submitScoreBtn');
+  nameInput.addEventListener('input', () => {
+    nameInput.value = nameInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+    submitBtn.disabled = nameInput.value.length !== 4;
+    if (state === 'highscore') updateFocusHighlight();
+  });
+
+  // 2P name inputs
+  const nameInput1 = document.getElementById('nameInput1');
+  const nameInput2 = document.getElementById('nameInput2');
+  const submitBtn2P = document.getElementById('submitScoreBtn2P');
+  function refresh2PSubmit() {
+    submitBtn2P.disabled = nameInput1.value.length !== 4 || nameInput2.value.length !== 4;
+    if (state === 'highscore-2p') updateFocusHighlight();
+  }
+  nameInput1.addEventListener('input', () => {
+    nameInput1.value = nameInput1.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+    refresh2PSubmit();
+    // Auto-advance to the second input once P1's name is complete
+    if (nameInput1.value.length === 4 && document.activeElement === nameInput1) {
+      nameInput2.focus();
+    }
+  });
+  nameInput2.addEventListener('input', () => {
+    nameInput2.value = nameInput2.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+    refresh2PSubmit();
+  });
+
+  // ---------- Settings wire-up ----------
+  const volMain = document.getElementById('vol-main');
+  const volPause = document.getElementById('vol-pause');
+  const volValMain = document.getElementById('vol-value-main');
+  const volValPause = document.getElementById('vol-value-pause');
+  function setVolumeUI(v) {
+    volMain.value = v; volPause.value = v;
+    volValMain.textContent = v;
+    volValPause.textContent = v;
+    audio.setVolume(v / 100);
+  }
+  setVolumeUI(50);
+  volMain.addEventListener('input', e => setVolumeUI(parseInt(e.target.value, 10)));
+  volPause.addEventListener('input', e => setVolumeUI(parseInt(e.target.value, 10)));
+
+  // ---------- Boot ----------
+  lastT = performance.now();
+  setState('main');
+  leaderboardSolo.load();
+  leaderboardCoop.load();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
