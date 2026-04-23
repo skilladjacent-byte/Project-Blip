@@ -48,6 +48,13 @@
   }
   #hud .timer.low { color: var(--danger); }
   #kills.ready { color: #ef4444; }
+  .boss-select-list {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    margin: 12px 0;
+  }
   /* HUD group toggling: normal vs boss mode */
   #hud .hud-boss { display: none; }
   #hud.mode-boss .hud-normal { display: none; }
@@ -483,6 +490,13 @@
       <button class="menu-btn primary" data-action="play-again">Play Again</button>
       <button class="menu-btn" data-action="leaderboard">Leaderboard</button>
       <button class="menu-btn" data-action="main-menu">Main Menu</button>
+    </div>
+
+    <div id="screen-boss-select" class="screen">
+      <h1 class="title accent">Boss Gauntlet</h1>
+      <p class="subtitle" id="boss-select-sub">Choose starting boss</p>
+      <div id="boss-list" class="boss-select-list"></div>
+      <button class="menu-btn" data-action="back-main">Back</button>
     </div>
 
     <div id="screen-boss-victory" class="screen">
@@ -1663,11 +1677,13 @@
 
   // Create a windmill centered on the arena with the given dimensions/speed,
   // used by Boss #2's arena-spanning mechanic. Overwrites any tag windmill.
+  // Starts at π/4 (45°) so the 4 blades point at the corners — this leaves
+  // the bottom-center spawn area (where players appear) safely between blades.
   function spawnArenaWindmill(bladeLength, bladeWidth, hubRadius, angularSpeed) {
     windmill = {
       x: W / 2,
       y: H / 2,
-      angle: Math.random() * Math.PI * 2,
+      angle: Math.PI / 4,
       angularSpeed,
       bladeLength,
       bladeWidth,
@@ -2433,6 +2449,7 @@
 
   // ---------- Gamepad ----------
   let gamepadIndex = null;
+  let lastPadDetectedId = null;  // track last reported pad so we don't spam DOM writes
   function refreshPadStatus() {
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     gamepadIndex = null;
@@ -2441,11 +2458,22 @@
     }
     if (gamepadIndex !== null) {
       const gp = pads[gamepadIndex];
-      padStatusEl.textContent = 'Controller: ' + (gp.id || 'connected').slice(0, 48);
-      padStatusEl.classList.add('connected');
+      const id = gp.id || 'connected';
+      if (id !== lastPadDetectedId) {
+        padStatusEl.textContent = 'Controller: ' + id.slice(0, 48);
+        padStatusEl.classList.add('connected');
+        lastPadDetectedId = id;
+      }
     } else {
-      padStatusEl.textContent = 'No controller detected — using keyboard + mouse';
-      padStatusEl.classList.remove('connected');
+      if (lastPadDetectedId !== null || !padStatusEl.textContent) {
+        // Browsers require a button press on the gamepad before surfacing it
+        // to navigator.getGamepads() — this is stricter on HTTPS (GitHub Pages)
+        // than on local file:// URLs. Telling the user what to do resolves
+        // the "why isn't my controller working?" confusion.
+        padStatusEl.textContent = 'No controller detected — press any button on controller to connect, or continue with keyboard + mouse';
+        padStatusEl.classList.remove('connected');
+        lastPadDetectedId = null;
+      }
     }
   }
   window.addEventListener('gamepadconnected', refreshPadStatus);
@@ -2648,7 +2676,7 @@
     startLevel();
   }
 
-  function startBossGame(count = 1) {
+  function startBossGame(count = 1, startIndex = 0) {
     gameMode = 'boss';
     numPlayers = count;
     level = 1;
@@ -2659,7 +2687,7 @@
     nuke = null;
     totalKills = 0;
     nextNukeAt = NUKE_KILL_THRESHOLD;
-    currentBossIndex = 0;
+    currentBossIndex = Math.max(0, Math.min(BOSSES.length - 1, startIndex));
     bossDefeatedCount = 0;
     // Clear all normal-mode entities
     enemies = [];
@@ -3893,6 +3921,12 @@
   function loop(now) {
     const dt = Math.min((now - lastT) / 1000, 0.05);
     lastT = now;
+    // Keep pad detection fresh while on menus. Some browsers won't surface
+    // a connected gamepad to navigator.getGamepads() until the user presses
+    // a button, and the gamepadconnected event can be flaky on HTTPS. Polling
+    // every frame here costs ~nothing and ensures the menu reflects the
+    // controller state immediately when the user does press something.
+    if (state !== 'playing') refreshPadStatus();
     pollMenuInput();
     if (state === 'playing') updatePlaying(dt);
     else if (state === 'dying') updateParticles(dt);
@@ -3910,6 +3944,7 @@
     'highscore':       document.getElementById('screen-highscore'),
     'highscore-2p':    document.getElementById('screen-highscore-2p'),
     'gameover':        document.getElementById('screen-gameover'),
+    'boss-select':     document.getElementById('screen-boss-select'),
     'boss-victory':    document.getElementById('screen-boss-victory'),
     'boss-gameover':   document.getElementById('screen-boss-gameover'),
     'exit':            document.getElementById('screen-exit'),
@@ -3940,6 +3975,37 @@
     return connectedGamepadIndices().length >= 1;
   }
 
+  // Remembers the player count chosen at "Boss Gauntlet (1P/2P)" so the
+  // boss-select screen can launch the game with the right count.
+  let pendingBossCount = 1;
+
+  // Build the list of boss buttons inside #boss-list from the BOSSES registry.
+  // Called every time we enter the boss-select screen so new bosses added to
+  // the registry appear without HTML edits. Click handlers call startBossGame
+  // with the current pendingBossCount and the chosen index.
+  function populateBossSelect() {
+    const list = document.getElementById('boss-list');
+    if (!list) return;
+    // Update subtitle so it's clear which mode (1P or 2P) is about to launch
+    const sub = document.getElementById('boss-select-sub');
+    if (sub) {
+      sub.textContent = 'Choose starting boss · ' + pendingBossCount + 'P';
+    }
+    list.innerHTML = '';
+    for (let i = 0; i < BOSSES.length; i++) {
+      const b = BOSSES[i];
+      const btn = document.createElement('button');
+      btn.className = 'menu-btn';
+      btn.textContent = b.name || ('Boss ' + (i + 1));
+      btn.addEventListener('click', () => {
+        startBossGame(pendingBossCount, i);
+      });
+      list.appendChild(btn);
+    }
+    // Refresh controller-focus tracking: first button in the list is a
+    // .menu-btn and gets focus when the screen becomes active via initFocusForState.
+  }
+
   async function handleAction(action) {
     switch (action) {
       case 'start':
@@ -3968,7 +4034,9 @@
         updateHUD();
         break;
       case 'start-boss-1p':
-        startBossGame(1);
+        pendingBossCount = 1;
+        populateBossSelect();
+        setState('boss-select');
         break;
       case 'start-boss-2p':
         if (!canStart2P()) {
@@ -3976,7 +4044,9 @@
           padStatusEl.classList.remove('connected');
           break;
         }
-        startBossGame(2);
+        pendingBossCount = 2;
+        populateBossSelect();
+        setState('boss-select');
         break;
       case 'boss-replay':
         startBossGame(numPlayers || 1);
