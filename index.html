@@ -211,6 +211,84 @@
     color: var(--bg);
     box-shadow: 0 0 0 2px rgba(255, 140, 60, 0.25);
   }
+  .focusable-slider.focused {
+    box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.5);
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* On-screen keyboard for high-score name entry.
+     A grid of character tiles navigable via controller D-pad / stick or
+     keyboard arrows. The 4-char name preview sits above. */
+  .osk {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    margin: 12px 0 20px;
+  }
+  .osk-preview {
+    display: flex;
+    gap: 10px;
+    font-variant-numeric: tabular-nums;
+  }
+  .osk-preview .slot {
+    width: 52px;
+    height: 68px;
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 42px;
+    font-weight: 700;
+    letter-spacing: 0;
+    color: var(--text);
+    background: var(--panel);
+  }
+  .osk-preview .slot.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.3);
+  }
+  .osk-grid {
+    display: grid;
+    grid-template-columns: repeat(9, 52px);
+    gap: 6px;
+    justify-content: center;
+  }
+  .osk-grid.two-rows { grid-template-rows: 52px 52px; }
+  .osk-key {
+    width: 52px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--text);
+    background: var(--panel);
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    user-select: none;
+    transition: transform 80ms, background 80ms, border-color 80ms;
+  }
+  .osk-key.wide { grid-column: span 2; font-size: 16px; letter-spacing: 1px; }
+  .osk-key:hover { background: var(--panel-hover, #1e2430); }
+  .osk-key.focused {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+    transform: translateY(-1px);
+    box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.35);
+  }
+  .osk-key.disabled { opacity: 0.35; cursor: default; }
+  .osk-hint {
+    color: var(--muted);
+    font-size: 14px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
 
   .final {
     font-size: 48px;
@@ -427,7 +505,7 @@
       <div class="settings-panel">
         <div class="setting-row">
           <label class="setting-label">Music Volume <span class="value" id="vol-value-main">50</span></label>
-          <input type="range" id="vol-main" min="0" max="100" value="50">
+          <input type="range" id="vol-main" class="focusable-slider" min="0" max="100" value="50">
         </div>
       </div>
       <button class="menu-btn" data-action="back-main">Back</button>
@@ -438,7 +516,7 @@
       <div class="settings-panel">
         <div class="setting-row">
           <label class="setting-label">Music Volume <span class="value" id="vol-value-pause">50</span></label>
-          <input type="range" id="vol-pause" min="0" max="100" value="50">
+          <input type="range" id="vol-pause" class="focusable-slider" min="0" max="100" value="50">
         </div>
       </div>
       <button class="menu-btn" data-action="back-pause">Back</button>
@@ -462,7 +540,14 @@
       <p class="subtitle">You made the top 5</p>
       <div class="final" id="highScoreLevel">LVL 1</div>
       <p class="subtitle" style="margin-bottom:8px;">Enter your name</p>
-      <input type="text" id="nameInput" class="name-input" maxlength="4" autocomplete="off" spellcheck="false">
+      <div class="osk">
+        <div class="osk-preview" id="osk-preview-1p">
+          <div class="slot"></div><div class="slot"></div>
+          <div class="slot"></div><div class="slot"></div>
+        </div>
+        <div class="osk-grid" id="osk-grid-1p"></div>
+        <div class="osk-hint">Left stick/D-pad or arrows · A/Enter to select · B/Backspace to delete</div>
+      </div>
       <button class="menu-btn primary" id="submitScoreBtn" data-action="submit-score" disabled>Submit</button>
     </div>
 
@@ -470,15 +555,17 @@
       <h1 class="title gold">New High Score!</h1>
       <p class="subtitle">You made the co-op top 5</p>
       <div class="final" id="highScoreLevel2P">LVL 1</div>
-      <div class="name-2p">
-        <div class="name-slot">
-          <label class="name-label">Player 1</label>
-          <input type="text" id="nameInput1" class="name-input small" maxlength="4" autocomplete="off" spellcheck="false">
+      <div class="osk">
+        <div class="osk-preview" id="osk-preview-2p">
+          <div class="name-label" style="margin-right:12px;">P1</div>
+          <div class="slot" data-p="1"></div><div class="slot" data-p="1"></div>
+          <div class="slot" data-p="1"></div><div class="slot" data-p="1"></div>
+          <div class="name-label" style="margin:0 12px;">P2</div>
+          <div class="slot" data-p="2"></div><div class="slot" data-p="2"></div>
+          <div class="slot" data-p="2"></div><div class="slot" data-p="2"></div>
         </div>
-        <div class="name-slot">
-          <label class="name-label">Player 2</label>
-          <input type="text" id="nameInput2" class="name-input small" maxlength="4" autocomplete="off" spellcheck="false">
-        </div>
+        <div class="osk-grid" id="osk-grid-2p"></div>
+        <div class="osk-hint">Left stick/D-pad or arrows · A/Enter to select · B/Backspace to delete</div>
       </div>
       <button class="menu-btn primary" id="submitScoreBtn2P" data-action="submit-score-2p" disabled>Submit</button>
     </div>
@@ -895,8 +982,45 @@
   let currentBossIndex = 0;     // which boss in the gauntlet we're on
   let bossDefeatedCount = 0;    // how many bosses cleared this gauntlet run
 
+  // Mini-boss: spawned in normal mode after levels 5, 10, 15...
+  // When isMiniBoss is true, damageBoss drops permanent stars instead of
+  // showing the victory screen, and after stars are picked up the run
+  // continues into level N+1.
+  let isMiniBoss = false;
+  let permanentStars = [];      // array of { x, y, age, color, playerIndex } dropped by mini-boss
+  // Permanent-powerup pool: all gold-star powerup types except invuln.
+  const PERMANENT_POWERUP_POOL = ['bigger', 'faster', 'piercing', 'doubleshot'];
+  // How many levels between mini-boss fights.
+  const MINIBOSS_INTERVAL = 5;
+
   const PLAYER_COLOR_1 = '#4ade80'; // green
   const PLAYER_COLOR_2 = '#60a5fa'; // blue
+
+  // Player sprites. Source images point UP natively (sprite "north" = aim
+  // target), so rotation uses atan2(dy, dx) + Math.PI / 2 when drawing.
+  // Sprite size is derived from PLAYER_RADIUS — sprites render at roughly
+  // 4x the radius in each dimension for visual weight (tweak SPRITE_SCALE
+  // if sprites feel too big or small).
+  const SPRITE_SCALE = 4.0;   // sprite width/height in multiples of PLAYER_RADIUS
+  const playerSprites = [
+    { body: null, gun: null, loaded: { body: false, gun: false } },
+    { body: null, gun: null, loaded: { body: false, gun: false } },
+  ];
+  function loadPlayerSprite(index, key, path) {
+    const img = new Image();
+    img.onload = () => { playerSprites[index].loaded[key] = true; };
+    img.onerror = () => { /* leave loaded=false; drawSinglePlayer falls back to the colored circle */ };
+    img.src = path;
+    playerSprites[index][key] = img;
+  }
+  loadPlayerSprite(0, 'body', 'Images/P1_Body.png');
+  loadPlayerSprite(0, 'gun',  'Images/P1_Gun.png');
+  loadPlayerSprite(1, 'body', 'Images/P2_Body.png');
+  loadPlayerSprite(1, 'gun',  'Images/P2_Gun.png');
+  function hasSpritesFor(playerIndex) {
+    const s = playerSprites[playerIndex];
+    return s && s.loaded.body && s.loaded.gun;
+  }
 
   // Phase within 'playing' state:
   // 'intro' -> 'combat' -> 'clearing' -> 'portal' -> 'falling' -> 'intro' (next level)
@@ -912,9 +1036,10 @@
   const TAG_POOL = ['tracker', 'slowfire', 'tanky', 'swarm', 'vortex', 'walls', 'windmill'];
 
   // Fixed intro order: levels 2..8 add tags in this sequence, one per level.
+  //   L2 tracker · L3 vortex · L4 walls · L5 tanky · L6 windmill · L7 swarm · L8 slowfire
   // Once all 7 tags are introduced (level 8), additional levels stack a random
   // existing tag instead.
-  const TAG_INTRO_ORDER = ['tracker', 'tanky', 'walls', 'vortex', 'windmill', 'swarm', 'slowfire'];
+  const TAG_INTRO_ORDER = ['tracker', 'vortex', 'walls', 'tanky', 'windmill', 'swarm', 'slowfire'];
 
   // HUD display info for each tag: colored dot + label
   const TAG_HUD_LABELS = {
@@ -962,7 +1087,7 @@
   const VORTEX_SLOW_MULT      = 0.5;
   const VORTEX_SPEED          = 28;   // very slow pursuit speed
   const VORTEX_STEER_RATE     = 1.0;  // how quickly it adjusts direction
-  const VORTEX_HP             = 10;
+  const VORTEX_HP             = 5;
   const VORTEX_SPAWN_INTERVAL = 10;   // seconds between reinforcement spawns
   // Tracker: fraction of spawns that become red homing enemies (rest spawn normally)
   const TRACKER_SPAWN_FRACTION = 1 / 3;
@@ -1055,6 +1180,17 @@
   function getEnemyColorFor(e) {
     return e && e.tracker ? TAG_RED : settings.enemyColor;
   }
+
+  // A player "has" a powerup if either the temporary timer is active OR the
+  // permanent flag from a mini-boss star is set. Invuln is excluded from the
+  // permanent pool, so it's always timer-based and checked directly.
+  function hasPowerup(p, key) {
+    if (!p) return false;
+    if (p.powerupTimers && p.powerupTimers[key] > 0) return true;
+    if (p.permanentPowerups && p.permanentPowerups[key]) return true;
+    return false;
+  }
+
   function getCurrentCooldown(p) {
     let cd = SHOOT_COOLDOWN;
     // Slowfire: count how many slowfire auras the player stands in. Each one
@@ -1063,7 +1199,7 @@
       const auras = countSlowfireAurasOn(p);
       if (auras > 0) cd *= Math.pow(SLOWFIRE_FACTOR, auras);
     }
-    if (p && p.powerupTimers.faster > 0) cd *= FASTER_FIRE_FACTOR;
+    if (hasPowerup(p, 'faster')) cd *= FASTER_FIRE_FACTOR;
     return cd;
   }
 
@@ -1085,7 +1221,6 @@
   const POWERUP_GOLD           = '#fbbf24';
   const BIGGER_BULLET_SCALE    = 2;     // 100% bigger
   const FASTER_FIRE_FACTOR     = 0.7;   // 30% faster fire → 0.7× cooldown
-  const PIERCING_COUNT         = 1;     // extra hits per projectile
   const DOUBLESHOT_SPREAD      = 8 * Math.PI / 180; // ±8° V-pattern
   const POWERUP_DURATION       = 7;     // all powerups last 7 seconds
 
@@ -1129,6 +1264,16 @@
   //            vortexThresholds (HP values; each crossing launches vortexes)
   //            vortexSpeedMult (multiplier on base vortex speed)
   //            arenaWindmill: { bladeLength, bladeWidth, hubRadius, angularSpeed } | null
+  // - type 'hunter':  slowly pursues + shoots straight-line shots. At each HP threshold
+  //                   crossing, dashes to center and runs a 6s vortex phase during which
+  //                   players are pulled inward and red dots rain in from edges.
+  //     extra: speed (tracking pursuit px/s)
+  //            shotInterval (seconds between straight-line shots)
+  //            vortexPhaseThresholds: [hp, hp, hp]
+  //            vortexPhaseDuration (seconds in vortex phase)
+  //            vortexPullStrength (px/s pull toward center)
+  //            vortexRedDotInterval (seconds between red-dot spawns during vortex)
+  //            vortexTransitDuration (seconds to dash to center)
   const BOSSES = [
     {
       id: 1,
@@ -1157,6 +1302,22 @@
         hubRadius: 22,
         angularSpeed: 0.5,
       },
+    },
+    {
+      id: 3,
+      name: 'Boss 3',
+      type: 'hunter',
+      maxHp: 200,
+      radius: 32,                      // medium, smaller than pursuer/turret (40)
+      color: '#0a0a0a',                // deep black
+      speed: 60,                       // slow pursuit
+      shotInterval: 3.0,               // semi-slow aimed shots
+      projectileSpeedMult: 1.0,        // normal red-dot speed
+      vortexPhaseThresholds: [150, 100, 50],
+      vortexPhaseDuration: 6.0,
+      vortexPullStrength: 220,         // px/s pull; player speed ≈230 so escape is slow
+      vortexRedDotInterval: 0.4,       // ~15 red dots over a 6s phase
+      vortexTransitDuration: 0.4,      // quick dash to center, not teleport
     },
   ];
 
@@ -1187,8 +1348,11 @@
 
   function playerHasAnyPowerup(p) {
     if (!p) return false;
-    const t = p.powerupTimers;
-    return t.bigger > 0 || t.faster > 0 || t.piercing > 0 || t.invuln > 0 || t.doubleshot > 0;
+    return hasPowerup(p, 'bigger')
+        || hasPowerup(p, 'faster')
+        || hasPowerup(p, 'piercing')
+        || hasPowerup(p, 'doubleshot')
+        || (p.powerupTimers && p.powerupTimers.invuln > 0);
   }
 
   function livingPlayers() {
@@ -1811,6 +1975,19 @@
         const w = config.arenaWindmill;
         spawnArenaWindmill(w.bladeLength, w.bladeWidth, w.hubRadius, w.angularSpeed);
       }
+    } else if (config.type === 'hunter') {
+      // Start at top-center, facing the arena. The player spawns at bottom-
+      // center (in boss mode), giving the player a full arena of distance
+      // to react to the first approach.
+      b.x = W / 2;
+      b.y = config.radius + 40;
+      b.phase = 'tracking';
+      b.shotTimer = config.shotInterval * 0.5;
+      b.thresholdsRemaining = (config.vortexPhaseThresholds || []).slice();
+      // Vortex-phase transit target (where the boss is heading — center)
+      b.transitStartX = 0;
+      b.transitStartY = 0;
+      b.redDotTimer = 0;
     }
     return b;
   }
@@ -1943,6 +2120,56 @@
     ctx.fill();
   }
 
+  // Hunter boss vortex-phase visual: a large pulsing gradient with rotating
+  // arc segments to convey motion/pull. Covers ~60% of the arena's smaller
+  // axis so the player clearly sees the threat zone.
+  function drawHunterVortexEffect() {
+    if (!boss) return;
+    const now = performance.now() / 1000;
+    const t = boss.phaseTimer / boss.config.vortexPhaseDuration; // 0..1
+    // Ramp intensity up then hold — avoids an abrupt start
+    const intensity = Math.min(1, t * 3);
+    const radius = Math.min(W, H) * 0.45;
+
+    // Radial swirl background — dark red fading out
+    const g = ctx.createRadialGradient(boss.x, boss.y, 0, boss.x, boss.y, radius);
+    g.addColorStop(0,    hexToRgba('#1a0000', 0.85 * intensity));
+    g.addColorStop(0.35, hexToRgba('#7f1d1d', 0.45 * intensity));
+    g.addColorStop(0.7,  hexToRgba('#450a0a', 0.2  * intensity));
+    g.addColorStop(1,    hexToRgba('#000000', 0));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(boss.x, boss.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Rotating arc bands suggest spin / being drawn in
+    ctx.save();
+    ctx.translate(boss.x, boss.y);
+    const spin = now * 2.5;
+    ctx.rotate(spin);
+    ctx.strokeStyle = hexToRgba('#b91c1c', 0.55 * intensity);
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 3; i++) {
+      const rArc = radius * (0.35 + i * 0.22);
+      const gap = 0.6;   // radians of unbroken arc per band
+      const start = i * 1.4;
+      ctx.beginPath();
+      ctx.arc(0, 0, rArc, start, start + gap);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(0, 0, rArc, start + Math.PI, start + Math.PI + gap);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Faint white inner ring at the event horizon
+    ctx.strokeStyle = hexToRgba('#ffffff', 0.2 * intensity);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(boss.x, boss.y, boss.config.radius * 1.8, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
   function drawBoss() {
     if (!boss) return;
     const p = boss.phase;
@@ -1954,6 +2181,13 @@
     const shadowPhases = ['wave1-warn', 'wave1-move', 'wave2-warn', 'wave2-move'];
     if (shadowPhases.indexOf(p) !== -1) { drawBossShadow(); return; }
     if (p === 'sinking' && scale <= 0) { drawBossShadow(); return; }
+
+    // Hunter boss: during vortex phase, render a giant swirling pull effect
+    // behind the boss body. Uses a radial gradient from dark red at the center
+    // to transparent far out, plus animated ring rotations for motion.
+    if (boss.config.type === 'hunter' && p === 'vortex-phase') {
+      drawHunterVortexEffect();
+    }
 
     const r = boss.config.radius * scale;
     if (r <= 0.5) return;
@@ -2056,6 +2290,9 @@
     // Turret bosses have their own simple behavior (no phases).
     if (boss.config.type === 'turret') {
       return updateTurretBoss(dt);
+    }
+    if (boss.config.type === 'hunter') {
+      return updateHunterBoss(dt);
     }
 
     switch (boss.phase) {
@@ -2201,6 +2438,211 @@
     return boss !== null;
   }
 
+  // Hunter boss: slow pursuit + aimed shots. Every HP threshold crossing
+  // triggers a 6s "vortex phase" where the boss dashes to center, pulls
+  // players inward, and red dots fly at players from arena edges.
+  //
+  // Phases:
+  //   'tracking'       — slow pursuit, fires straight-line shots on interval
+  //   'vortex-transit' — quick dash to center (~0.4s), no shooting
+  //   'vortex-phase'   — stationary at center, pulling players + spawning red dots
+  //   damage immunity active during 'vortex-transit' and 'vortex-phase'
+  function updateHunterBoss(dt) {
+    const cfg = boss.config;
+
+    // Tick a "subphase" timer so we can stage transitions cleanly
+    boss.phaseTimer = boss.phaseTimer || 0;
+
+    if (boss.phase === 'tracking') {
+      // Slow pursuit of nearest living player
+      const alive = livingPlayers();
+      if (alive.length > 0) {
+        let best = alive[0], bd = Infinity;
+        for (const pp of alive) {
+          const d2 = (pp.x - boss.x) ** 2 + (pp.y - boss.y) ** 2;
+          if (d2 < bd) { bd = d2; best = pp; }
+        }
+        const dxp = best.x - boss.x, dyp = best.y - boss.y;
+        const dlen = Math.hypot(dxp, dyp) || 1;
+        const desiredVx = (dxp / dlen) * cfg.speed;
+        const desiredVy = (dyp / dlen) * cfg.speed;
+        const k = 1 - Math.exp(-dt * BOSS_STEER_RATE);
+        boss.vx += (desiredVx - boss.vx) * k;
+        boss.vy += (desiredVy - boss.vy) * k;
+        boss.x += boss.vx * dt;
+        boss.y += boss.vy * dt;
+        boss.x = Math.max(cfg.radius, Math.min(W - cfg.radius, boss.x));
+        boss.y = Math.max(cfg.radius, Math.min(H - cfg.radius, boss.y));
+      }
+
+      // Lethal contact (standard)
+      for (const p of players) {
+        if (!p.alive) continue;
+        const dx = p.x - boss.x, dy = p.y - boss.y;
+        const rr = cfg.radius + PLAYER_RADIUS;
+        if (dx * dx + dy * dy <= rr * rr) {
+          if (p.powerupTimers.invuln <= 0) {
+            killPlayer(p);
+            if (livingPlayers().length === 0) { endGame(); return false; }
+          } else {
+            damageBoss(1);
+            if (!boss) return false;
+          }
+        }
+      }
+
+      // Straight-line shot toward nearest living player
+      boss.shotTimer -= dt;
+      if (boss.shotTimer <= 0) {
+        fireHunterShot();
+        boss.shotTimer = cfg.shotInterval;
+      }
+    }
+    else if (boss.phase === 'vortex-transit') {
+      // Dash to center via lerp
+      const t = Math.min(1, boss.phaseTimer / cfg.vortexTransitDuration);
+      const ease = t; // linear is fine for a 0.4s dash
+      boss.x = boss.transitStartX + (W / 2 - boss.transitStartX) * ease;
+      boss.y = boss.transitStartY + (H / 2 - boss.transitStartY) * ease;
+      boss.vx = 0;
+      boss.vy = 0;
+      // Damage-immune during transit (handled in the hunter-vs-projectile check)
+      if (t >= 1) {
+        boss.x = W / 2;
+        boss.y = H / 2;
+        boss.phase = 'vortex-phase';
+        boss.phaseTimer = 0;
+        boss.redDotTimer = 0;
+        spawnParticles(boss.x, boss.y, '#ffffff', 30, 120, 320, 0.4, 0.8);
+        audio.sweep();
+      }
+    }
+    else if (boss.phase === 'vortex-phase') {
+      // Pull living players toward center
+      applyHunterVortexPull(dt);
+      // Red-dot rain: spawn aimed at current player position from random edges
+      boss.redDotTimer -= dt;
+      if (boss.redDotTimer <= 0) {
+        spawnHunterVortexRedDot();
+        boss.redDotTimer = cfg.vortexRedDotInterval;
+      }
+      // Boss remains lethal on contact during vortex phase — standing at
+      // center is a real threat if you can't fight the pull.
+      for (const p of players) {
+        if (!p.alive) continue;
+        const dx = p.x - boss.x, dy = p.y - boss.y;
+        const rr = cfg.radius + PLAYER_RADIUS;
+        if (dx * dx + dy * dy <= rr * rr) {
+          if (p.powerupTimers.invuln <= 0) {
+            killPlayer(p);
+            if (livingPlayers().length === 0) { endGame(); return false; }
+          }
+          // Invuln contact does NOT damage the boss during vortex phase
+          // (boss is immune — this is a mechanics phase, not a DPS phase)
+        }
+      }
+
+      if (boss.phaseTimer >= cfg.vortexPhaseDuration) {
+        boss.phase = 'tracking';
+        boss.phaseTimer = 0;
+        boss.shotTimer = cfg.shotInterval * 0.5;
+        spawnParticles(boss.x, boss.y, cfg.color, 24, 80, 260, 0.35, 0.7);
+      }
+    }
+
+    // Process boss-spawned enemies (red dots) every frame, regardless of phase.
+    // They linger from the last vortex phase and still threaten the player during
+    // tracking.
+    updateBossEnemies(dt);
+    return boss !== null;
+  }
+
+  // Is the boss currently immune to damage? Hunter is immune while mid-transit
+  // or in the vortex phase. The projectile-vs-boss check consults this.
+  function isBossDamageImmune() {
+    if (!boss) return false;
+    if (boss.config.type === 'hunter') {
+      return boss.phase === 'vortex-transit' || boss.phase === 'vortex-phase';
+    }
+    return false;
+  }
+
+  // Straight-line aimed shot at nearest living player. Unlike Boss #2's
+  // tracker red dots, these don't home in — they fly in a fixed direction.
+  function fireHunterShot() {
+    if (!boss) return;
+    const alive = livingPlayers();
+    if (alive.length === 0) return;
+    const target = alive[Math.floor(Math.random() * alive.length)];
+    const dx = target.x - boss.x;
+    const dy = target.y - boss.y;
+    const d = Math.hypot(dx, dy) || 1;
+    const baseSpeed = ENEMY_SPEED_MIN + Math.random() * (ENEMY_SPEED_MAX - ENEMY_SPEED_MIN);
+    const speed = baseSpeed * (boss.config.projectileSpeedMult || 1);
+    enemies.push({
+      x: boss.x + (dx / d) * (boss.config.radius + 8),
+      y: boss.y + (dy / d) * (boss.config.radius + 8),
+      vx: (dx / d) * speed,
+      vy: (dy / d) * speed,
+      r: ENEMY_RADIUS,
+      hp: 1,
+      tracker: false,       // straight-line, not homing
+      speed,
+      hitFlash: 0,
+    });
+    audio.blip(380 + Math.random() * 80);
+  }
+
+  // Spawn a red dot at a random arena edge, aimed at a random living player's
+  // current position. Straight-line (not tracking) so the player can dodge
+  // by moving perpendicular to the shot.
+  function spawnHunterVortexRedDot() {
+    const alive = livingPlayers();
+    if (alive.length === 0) return;
+    const target = alive[Math.floor(Math.random() * alive.length)];
+    // Spawn at a random edge position
+    const side = Math.floor(Math.random() * 4);
+    let sx, sy;
+    if (side === 0)      { sx = Math.random() * W;    sy = -10;     }
+    else if (side === 1) { sx = W + 10;               sy = Math.random() * H; }
+    else if (side === 2) { sx = Math.random() * W;    sy = H + 10;  }
+    else                 { sx = -10;                  sy = Math.random() * H; }
+    const dx = target.x - sx, dy = target.y - sy;
+    const d = Math.hypot(dx, dy) || 1;
+    const speed = (ENEMY_SPEED_MIN + Math.random() * (ENEMY_SPEED_MAX - ENEMY_SPEED_MIN)) * 1.1;
+    enemies.push({
+      x: sx, y: sy,
+      vx: (dx / d) * speed,
+      vy: (dy / d) * speed,
+      r: ENEMY_RADIUS,
+      hp: 1,
+      tracker: false,
+      speed,
+      hitFlash: 0,
+    });
+  }
+
+  // Apply vortex pull to all living players during the hunter boss's
+  // vortex-phase. Pull is an acceleration toward the boss position; player
+  // input still moves the player so moving directly opposite escapes slowly.
+  function applyHunterVortexPull(dt) {
+    if (!boss) return;
+    const strength = boss.config.vortexPullStrength;
+    for (const p of players) {
+      if (!p.alive) continue;
+      const dx = boss.x - p.x;
+      const dy = boss.y - p.y;
+      const d = Math.hypot(dx, dy) || 1;
+      // Convert pull into a displacement (not acceleration) — simpler and
+      // predictable. Each frame, player shifts this much toward center.
+      p.x += (dx / d) * strength * dt;
+      p.y += (dy / d) * strength * dt;
+      // Clamp to arena bounds
+      p.x = Math.max(PLAYER_RADIUS, Math.min(W - PLAYER_RADIUS, p.x));
+      p.y = Math.max(PLAYER_RADIUS, Math.min(H - PLAYER_RADIUS, p.y));
+    }
+  }
+
   // Move and collide the vortexes during a boss fight. Each vortex pursues the
   // nearest living player at VORTEX_SPEED * v.speedMult (default 1 if unset).
   function updateBossVortexes(dt) {
@@ -2323,6 +2765,8 @@
 
   function damageBoss(amount) {
     if (!boss) return;
+    // Ignore damage while the boss is in a damage-immune phase
+    if (isBossDamageImmune()) return;
     boss.hp -= amount;
     boss.hitFlash = HIT_FLASH_DURATION;
 
@@ -2335,15 +2779,31 @@
       }
     }
 
+    // Hunter boss: HP threshold crossings trigger the vortex phase.
+    // Only trigger once per frame regardless of how many thresholds the
+    // damage crosses (rare with 1-damage shots but defensive).
+    if (boss.config.type === 'hunter' && boss.thresholdsRemaining
+        && boss.phase === 'tracking') {
+      if (boss.thresholdsRemaining.length > 0 && boss.hp <= boss.thresholdsRemaining[0]) {
+        boss.thresholdsRemaining.shift();
+        boss.phase = 'vortex-transit';
+        boss.phaseTimer = 0;
+        boss.transitStartX = boss.x;
+        boss.transitStartY = boss.y;
+        addToast(W / 2, H / 2 - 30, 'VORTEX!', '#ef4444');
+      }
+    }
+
     if (boss.hp <= 0) {
       // Explosion burst at boss position
       spawnParticles(boss.x, boss.y, boss.config.color, 60, 120, 420, 0.6, 1.2);
       spawnParticles(boss.x, boss.y, '#ffffff', 30, 80, 280, 0.4, 0.8);
       audio.sweep();
       audio.pop();
-      bossDefeatedCount += 1;
 
-      // Clean up spent entities so the next boss gets a clean arena
+      const bossX = boss.x, bossY = boss.y;
+
+      // Clean up spent entities so the next transition gets a clean arena
       enemies = [];
       vortexes = [];
       slowfires = [];
@@ -2351,7 +2811,23 @@
       windmill = null;
       boss = null;
 
-      // Advance or declare victory
+      if (isMiniBoss) {
+        // Mini-boss in-run: drop one star per player; updatePermanentStars
+        // will route to finishMiniBoss() after all stars are collected.
+        // Revive any dead players so they can collect their star.
+        for (let i = 0; i < players.length; i++) {
+          placePlayerAtStart(players[i], i, players.length);
+          // Short invuln window so revived players aren't instantly vulnerable
+          // to re-spawning tag entities, though none are active here yet.
+          players[i].powerupTimers.invuln = Math.max(players[i].powerupTimers.invuln, 2);
+        }
+        dropPermanentStars(bossX, bossY);
+        return;
+      }
+
+      bossDefeatedCount += 1;
+
+      // Advance or declare victory (boss-gauntlet mode)
       if (currentBossIndex + 1 < BOSSES.length) {
         currentBossIndex += 1;
         addToast(W / 2, H / 2 - 20, 'BOSS ' + BOSSES[currentBossIndex].id, '#ffffff');
@@ -2412,6 +2888,138 @@
       });
       spawnParticles(c.x, c.y, TAG_PURPLE, 14, 80, 280, 0.3, 0.6);
     }
+  }
+
+  // ---------- Mini-boss (in-run) ----------
+  // Triggered at level 5, 10, 15, ... A random boss is picked. While the
+  // mini-boss is active, the update loop routes through updatePlayingBoss
+  // (via gameMode = 'boss'). When damageBoss fires with isMiniBoss true,
+  // stars are dropped instead of transitioning to the victory screen.
+  function startMiniBoss() {
+    isMiniBoss = true;
+    gameMode = 'boss';
+    // Clear tag entities so the boss fight isn't polluted by walls/windmill/
+    // vortexes/slowfires — startLevel() will rebuild them fresh for level N+1.
+    enemies = [];
+    vortexes = [];
+    slowfires = [];
+    walls = [];
+    windmill = null;
+    projectiles = [];
+    powerup = null;
+    nuke = null;
+    permanentStars = [];
+    // Pick a random boss and place players at the mini-boss spawn position.
+    currentBossIndex = Math.floor(Math.random() * BOSSES.length);
+    for (let i = 0; i < players.length; i++) {
+      placePlayerAtStart(players[i], i, players.length);
+    }
+    boss = spawnBoss(currentBossIndex);
+    addToast(W / 2, H / 2 - 20, 'MINI-BOSS: ' + (boss.config.name || 'BOSS'), '#ffffff');
+    updateBossHud();
+    // Swap HUD to boss-HP layout while the mini-boss is active. finishMiniBoss
+    // flips this back before the next level starts.
+    if (hudEl) hudEl.classList.add('mode-boss');
+    // Keep phase = 'combat' so UI cues (e.g. HUD mode-boss) pick up on
+    // gameMode instead. The main update loop now dispatches to updatePlayingBoss.
+    phase = 'combat';
+    phaseTimer = 0;
+  }
+
+  // Drop one star per player (regardless of alive/dead) at the boss's
+  // position, spread in a small ring so both stars are visible separately.
+  function dropPermanentStars(x, y) {
+    permanentStars = [];
+    const n = players.length;
+    for (let i = 0; i < n; i++) {
+      const p = players[i];
+      const angle = (i / Math.max(1, n)) * Math.PI * 2 + Math.PI / 2;
+      const r = n > 1 ? 40 : 0;
+      permanentStars.push({
+        x: x + Math.cos(angle) * r,
+        y: y + Math.sin(angle) * r,
+        age: 0,
+        color: p.color,
+        playerIndex: p.index,
+        collected: false,
+      });
+    }
+  }
+
+  // Star pickup: add a random permanent powerup that the player doesn't
+  // already have. If they have everything, nothing is granted (rare case).
+  // Returns the granted type name, or null if none available.
+  function pickUpPermanentStar(star, p) {
+    const missing = PERMANENT_POWERUP_POOL.filter(k => !p.permanentPowerups[k]);
+    let granted = null;
+    if (missing.length > 0) {
+      granted = missing[Math.floor(Math.random() * missing.length)];
+      p.permanentPowerups[granted] = true;
+    }
+    star.collected = true;
+    spawnParticles(star.x, star.y, star.color, 30, 100, 360, 0.5, 1.0);
+    audio.chime();
+    if (granted) {
+      const label = (granted === 'bigger' ? 'BIG' : granted === 'faster' ? 'FAST' : granted === 'piercing' ? 'PIERCE' : 'DOUBLE');
+      addToast(p.x, p.y - 36, label + ' FOREVER', star.color);
+    } else {
+      addToast(p.x, p.y - 36, 'MAX', star.color);
+    }
+  }
+
+  function updatePermanentStars(dt) {
+    for (let i = permanentStars.length - 1; i >= 0; i--) {
+      const s = permanentStars[i];
+      if (s.collected) { permanentStars.splice(i, 1); continue; }
+      s.age += dt;
+      // Each star is tied to a specific player — only that player can pick it up
+      const p = players[s.playerIndex];
+      if (!p || !p.alive) continue;
+      const dx = p.x - s.x, dy = p.y - s.y;
+      const rr = PLAYER_RADIUS + POWERUP_RADIUS;
+      if (dx * dx + dy * dy <= rr * rr) {
+        pickUpPermanentStar(s, p);
+      }
+    }
+    // If all stars are gone (collected or nothing to collect) and there's no
+    // boss and we're in mini-boss mode, transition to the next level.
+    if (isMiniBoss && !boss && permanentStars.length === 0) {
+      finishMiniBoss();
+    }
+  }
+
+  function drawPermanentStars() {
+    for (const s of permanentStars) {
+      if (s.collected) continue;
+      const pulse = 1 + Math.sin(s.age * 4) * 0.1;
+      const rot = s.age * 1.0;
+      const glowR = POWERUP_RADIUS * 3.2 * pulse;
+      const glow = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, glowR);
+      glow.addColorStop(0, hexToRgba(s.color, 0.35));
+      glow.addColorStop(1, hexToRgba(s.color, 0));
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, glowR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = s.color;
+      drawStarShape(s.x, s.y, POWERUP_RADIUS * pulse, POWERUP_RADIUS * 0.45 * pulse, rot);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // Exit mini-boss mode and proceed to the next level normally.
+  function finishMiniBoss() {
+    isMiniBoss = false;
+    gameMode = 'normal';
+    boss = null;
+    yellowDots = [];
+    if (hudEl) hudEl.classList.remove('mode-boss');
+    level += 1;
+    startLevel();
   }
 
   function drawInvulnAura(p) {
@@ -2494,18 +3102,20 @@
   let focusIndex = 0;
   const prevPad = {
     a: false, b: false, start: false,
-    up: false, down: false,
+    up: false, down: false, left: false, right: false,
   };
 
   function getFocusableButtons(screenKey) {
     const screen = screens[screenKey];
     if (!screen) return [];
-    return Array.from(screen.querySelectorAll('.menu-btn'));
+    // Sliders marked .focusable-slider participate in controller focus cycling
+    // alongside .menu-btn buttons. Order is determined by DOM order.
+    return Array.from(screen.querySelectorAll('.menu-btn, .focusable-slider'));
   }
 
   function updateFocusHighlight() {
-    // Clear focus class across all menu buttons
-    document.querySelectorAll('.menu-btn.focused').forEach(b => b.classList.remove('focused'));
+    // Clear focus class across all focusable elements
+    document.querySelectorAll('.menu-btn.focused, .focusable-slider.focused, .osk-key.focused').forEach(b => b.classList.remove('focused'));
     // Apply to the focused one, if not disabled
     const btns = getFocusableButtons(state);
     const btn = btns[focusIndex];
@@ -2558,11 +3168,16 @@
     const startNow = !!(gp.buttons[9]  && gp.buttons[9].pressed);
     const dpadUp   = !!(gp.buttons[12] && gp.buttons[12].pressed);
     const dpadDown = !!(gp.buttons[13] && gp.buttons[13].pressed);
+    const dpadLeft = !!(gp.buttons[14] && gp.buttons[14].pressed);
+    const dpadRight= !!(gp.buttons[15] && gp.buttons[15].pressed);
 
-    // Navigation: combine D-pad and left stick Y into up/down "pulses"
+    // Navigation: combine D-pad and left stick into up/down/left/right "pulses"
     const ly = gp.axes[1] || 0;
-    const upNow   = dpadUp   || ly < -MENU_STICK_THRESHOLD;
-    const downNow = dpadDown || ly >  MENU_STICK_THRESHOLD;
+    const lx = gp.axes[0] || 0;
+    const upNow    = dpadUp    || ly < -MENU_STICK_THRESHOLD;
+    const downNow  = dpadDown  || ly >  MENU_STICK_THRESHOLD;
+    const leftNow  = dpadLeft  || lx < -MENU_STICK_THRESHOLD;
+    const rightNow = dpadRight || lx >  MENU_STICK_THRESHOLD;
 
     // Start: pause / resume / back-out (edge-triggered)
     if (startNow && !prevPad.start) {
@@ -2573,10 +3188,46 @@
     const inMenu = state !== 'playing' && state !== 'dying';
     if (inMenu) {
       if (aNow && !prevPad.a) {
-        activateFocused();
+        // On high-score screens, route A to the OSK unless the Submit button
+        // is already enabled (name complete), in which case A submits.
+        if (state === 'highscore' || state === 'highscore-2p') {
+          const btnId = state === 'highscore' ? 'submitScoreBtn' : 'submitScoreBtn2P';
+          const submitBtn = document.getElementById(btnId);
+          if (submitBtn && !submitBtn.disabled && focusIndex === getFocusableButtons(state).length - 1) {
+            // Focus is on the Submit button and it's enabled — submit
+            activateFocused();
+          } else {
+            // Otherwise pick the focused OSK key
+            handleOskInput('select');
+          }
+        } else {
+          activateFocused();
+        }
       }
-      if (upNow && !prevPad.up)     moveFocus(-1);
-      if (downNow && !prevPad.down) moveFocus(1);
+      // On-screen keyboard screens have their own navigation (grid-based).
+      // Slider screens use left/right to adjust value, up/down to move focus.
+      if (state === 'highscore' || state === 'highscore-2p') {
+        // OSK edge-triggered inputs go through handleOskInput
+        if (upNow    && !prevPad.up)    handleOskInput('up');
+        if (downNow  && !prevPad.down)  handleOskInput('down');
+        if (leftNow  && !prevPad.left)  handleOskInput('left');
+        if (rightNow && !prevPad.right) handleOskInput('right');
+        if (bNow     && !prevPad.b)     handleOskInput('delete');
+      } else {
+        if (upNow && !prevPad.up)     moveFocus(-1);
+        if (downNow && !prevPad.down) moveFocus(1);
+
+        // Left/right adjusts the focused slider, if any. Unlike up/down which
+        // need edge-triggering to feel deliberate, sliders feel better with
+        // a steady auto-repeat while held — so we adjust every frame while
+        // the direction is held.
+        const focused = getFocusableButtons(state)[focusIndex];
+        if (focused && focused.classList.contains('focusable-slider')) {
+          if (leftNow || rightNow) {
+            adjustSlider(focused, leftNow ? -SLIDER_STEP : SLIDER_STEP);
+          }
+        }
+      }
     }
 
     prevPad.a = aNow;
@@ -2584,6 +3235,24 @@
     prevPad.start = startNow;
     prevPad.up = upNow;
     prevPad.down = downNow;
+    prevPad.left = leftNow;
+    prevPad.right = rightNow;
+  }
+
+  // Step size for slider L/R adjustment per frame while held.
+  // At 60fps with step 1, it takes 1.67s to traverse 0→100 (reasonable feel).
+  const SLIDER_STEP = 1;
+
+  // Set slider value and fire an 'input' event so bound listeners (like the
+  // volume wiring) update in sync with the displayed value.
+  function adjustSlider(slider, delta) {
+    const min = parseInt(slider.min, 10) || 0;
+    const max = parseInt(slider.max, 10) || 100;
+    const cur = parseInt(slider.value, 10) || 0;
+    const next = Math.max(min, Math.min(max, cur + delta));
+    if (next === cur) return;
+    slider.value = next;
+    slider.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
   // ---------- Setup ----------
@@ -2596,11 +3265,20 @@
       color: i === 0 ? PLAYER_COLOR_1 : PLAYER_COLOR_2,
       alive: true,
       powerupTimers: { bigger: 0, faster: 0, piercing: 0, invuln: 0, doubleshot: 0 },
+      // Permanent powerups from mini-boss stars. Invuln is intentionally not
+      // in this pool. Once true, the effect is always-on for the rest of the run.
+      permanentPowerups: { bigger: false, faster: false, piercing: false, doubleshot: false },
       reviveTimer: 0,   // counts down while dead; on 0, player respawns
       reviveFade: 0,    // counts down after respawn; drives fade-in alpha
       aim: { x: 0, y: 0, active: false },
       aimFromGamepad: false,
       shootCooldown: 0,
+      // Sprite rotations. Stored as atan2(dy, dx), east-relative radians.
+      // Sprite artwork points UP natively, so the actual canvas rotation
+      // applied is (angle + Math.PI/2) to align the sprite's "up" with the
+      // direction. Initial value -π/2 = pointing up on spawn.
+      bodyAngle: -Math.PI / 2,
+      gunAngle: -Math.PI / 2,
       inputSource: { type: 'keyboard' }, // set in assignInputSources
     };
   }
@@ -2657,6 +3335,8 @@
 
   function newGame(count = 1) {
     gameMode = 'normal';
+    isMiniBoss = false;
+    permanentStars = [];
     numPlayers = count;
     level = 1;
     tagSequence = [];
@@ -2678,6 +3358,8 @@
 
   function startBossGame(count = 1, startIndex = 0) {
     gameMode = 'boss';
+    isMiniBoss = false;
+    permanentStars = [];
     numPlayers = count;
     level = 1;
     tagSequence = [];
@@ -2818,11 +3500,14 @@
 
   function fireProjectile(p) {
     if (!p || !p.aim.active) return;
-    const r = p.powerupTimers.bigger > 0 ? PROJECTILE_RADIUS * BIGGER_BULLET_SCALE : PROJECTILE_RADIUS;
-    const pierce = p.powerupTimers.piercing > 0 ? PIERCING_COUNT : 0;
+    const r = hasPowerup(p, 'bigger') ? PROJECTILE_RADIUS * BIGGER_BULLET_SCALE : PROJECTILE_RADIUS;
+    // Piercing: unlimited. We use Infinity so the existing "pr.pierce -= 1"
+    // decrement sites stay consistent (Infinity - 1 === Infinity). hitCooldown
+    // still prevents double-hitting the same enemy in consecutive frames.
+    const pierce = hasPowerup(p, 'piercing') ? Infinity : 0;
 
     // Double shot fires two projectiles angled ±DOUBLESHOT_SPREAD from the aim
-    const doubled = p.powerupTimers.doubleshot > 0;
+    const doubled = hasPowerup(p, 'doubleshot');
     const baseAngle = Math.atan2(p.aim.y, p.aim.x);
     const offsets = doubled ? [-DOUBLESHOT_SPREAD, DOUBLESHOT_SPREAD] : [0];
 
@@ -2920,6 +3605,39 @@
     return { mx, my };
   }
 
+  // Shortest signed angular difference from `from` to `to`, in (-π, π]
+  function angleDiff(from, to) {
+    let d = to - from;
+    while (d > Math.PI)  d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    return d;
+  }
+
+  // Smoothly rotate body toward movement direction and gun toward aim
+  // direction. Both angles stored east-relative (atan2 convention). The
+  // sprite's natural "up" is handled at draw time by adding +π/2.
+  const BODY_TURN_RATE = 10;  // higher = snappier body rotation
+  const GUN_TURN_RATE  = 16;  // gun turns faster than body
+  function updatePlayerAngles(p, mx, my, dt) {
+    // Body: only rotate when there's input. Idle → hold last facing.
+    if (mx !== 0 || my !== 0) {
+      const target = Math.atan2(my, mx);
+      const d = angleDiff(p.bodyAngle, target);
+      const k = 1 - Math.exp(-dt * BODY_TURN_RATE);
+      p.bodyAngle += d * k;
+    }
+    // Gun: follow aim if active, else match body
+    let gunTarget;
+    if (p.aim.active) {
+      gunTarget = Math.atan2(p.aim.y, p.aim.x);
+    } else {
+      gunTarget = p.bodyAngle;
+    }
+    const dg = angleDiff(p.gunAngle, gunTarget);
+    const kg = 1 - Math.exp(-dt * GUN_TURN_RATE);
+    p.gunAngle += dg * kg;
+  }
+
   function readPlayerAim(p, gp) {
     // Updates p.aim and p.aimFromGamepad in place
     p.aim.active = false;
@@ -2990,6 +3708,9 @@
       // Aim
       readPlayerAim(p, gp);
 
+      // Update body/gun sprite rotations
+      updatePlayerAngles(p, mx, my, dt);
+
       // Shoot cooldown + firing
       const usingGamepad = p.inputSource.type === 'gamepad';
       const usingKeyboard = p.inputSource.type === 'keyboard';
@@ -3023,8 +3744,8 @@
       }
       if (pr.hitCooldown > 0) continue;
 
-      // Boss body
-      if (boss && shadowPhases.indexOf(boss.phase) === -1) {
+      // Boss body — skip if boss is in a damage-immune phase (hunter vortex)
+      if (boss && shadowPhases.indexOf(boss.phase) === -1 && !isBossDamageImmune()) {
         const dx = boss.x - pr.x, dy = boss.y - pr.y;
         const rr = boss.config.radius + pr.r;
         if (dx * dx + dy * dy <= rr * rr) {
@@ -3127,6 +3848,7 @@
 
     updateToasts(dt);
     updateParticles(dt);
+    updatePermanentStars(dt);
     updateBossHud();
   }
 
@@ -3174,6 +3896,9 @@
           p.x = Math.max(PLAYER_RADIUS, Math.min(W - PLAYER_RADIUS, p.x));
           p.y = Math.max(PLAYER_RADIUS, Math.min(H - PLAYER_RADIUS, p.y));
         }
+        // Update body/gun sprite rotations (aim is read later in this frame
+        // so gun will snap to it on the following frame if aim just activated)
+        updatePlayerAngles(p, mx, my, dt);
       }
 
       // Aim (combat + portal only)
@@ -3218,11 +3943,19 @@
         }
       }
 
-      // Enemy spawns (scaled by living player count via currentSpawnInterval)
+      // Enemy spawns (scaled by living player count via currentSpawnInterval).
+      // Each wave spawns floor(N) dots guaranteed, plus 1 more with chance
+      // equal to the fractional part of N. N = 1 + 0.03 * (level - 1), so
+      // level 1 = 1 dot, level 11 = 1 dot + 30% chance of a 2nd, level 34 = 2
+      // dots guaranteed + 0% for a 3rd, and so on.
       if (livingPlayers().length > 0) {
         spawnTimer -= dt;
         while (spawnTimer <= 0) {
-          spawnEnemy();
+          const dotsPerWave = 1 + 0.03 * Math.max(0, level - 1);
+          const guaranteed = Math.floor(dotsPerWave);
+          const bonusChance = dotsPerWave - guaranteed;
+          const count = guaranteed + (Math.random() < bonusChance ? 1 : 0);
+          for (let n = 0; n < count; n++) spawnEnemy();
           spawnTimer += currentSpawnInterval();
         }
       }
@@ -3504,7 +4237,14 @@
     }
     else if (phase === 'clearing') {
       if (phaseTimer >= CLEAR_DURATION) {
-        openPortal();
+        // Mini-boss trigger: every 5 levels in normal mode, spawn a random
+        // boss before the portal. Stars are dropped on boss defeat; collecting
+        // them grants a permanent random powerup, then the run continues.
+        if (level % MINIBOSS_INTERVAL === 0 && level > 0) {
+          startMiniBoss();
+        } else {
+          openPortal();
+        }
       }
     }
     else if (phase === 'portal') {
@@ -3587,6 +4327,12 @@
     state = 'dying';
     setTimeout(() => {
       if (state !== 'dying') return;
+      // Mini-boss death = normal-mode game over. Reset the flag so subsequent
+      // runs don't think they're still in a mini-boss.
+      if (isMiniBoss) {
+        isMiniBoss = false;
+        gameMode = 'normal';
+      }
       if (gameMode === 'boss') {
         if (bossDeathCountEl) bossDeathCountEl.textContent = bossDefeatedCount;
         setState('boss-gameover');
@@ -3597,18 +4343,11 @@
         if (numPlayers === 1) {
           highScoreLevelEl.textContent = 'LVL ' + lastRunLevel;
           setState('highscore');
-          const input = document.getElementById('nameInput');
-          input.value = '';
-          document.getElementById('submitScoreBtn').disabled = true;
-          setTimeout(() => input.focus(), 50);
+          resetOskForState('highscore');
         } else {
           document.getElementById('highScoreLevel2P').textContent = 'LVL ' + lastRunLevel;
           setState('highscore-2p');
-          const i1 = document.getElementById('nameInput1');
-          const i2 = document.getElementById('nameInput2');
-          i1.value = ''; i2.value = '';
-          document.getElementById('submitScoreBtn2P').disabled = true;
-          setTimeout(() => i1.focus(), 50);
+          resetOskForState('highscore-2p');
         }
       } else {
         finalLevelEl.textContent = 'LVL ' + lastRunLevel;
@@ -3784,6 +4523,8 @@
     ctx.globalAlpha = fadeAlpha;
 
     const r = PLAYER_RADIUS * scale;
+
+    // Glow stays regardless of sprite mode — helps powered-up players pop
     const powered = playerHasAnyPowerup(p);
     const glowColor = powered ? POWERUP_GOLD : p.color;
     const innerAlpha = powered ? 0.55 : 0.4;
@@ -3794,12 +4535,65 @@
     ctx.beginPath();
     ctx.arc(cx, cy, r * 3, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = p.color;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fill();
+
+    // Draw sprites if loaded, fall back to colored circle otherwise.
+    // Sprite art points UP natively, so we add Math.PI/2 to the east-relative
+    // angle so sprite "up" matches the direction we want to face.
+    if (hasSpritesFor(p.index)) {
+      const sprites = playerSprites[p.index];
+      const size = PLAYER_RADIUS * SPRITE_SCALE * scale;
+      // Body: rotated to match movement direction
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(p.bodyAngle + Math.PI / 2);
+      ctx.drawImage(sprites.body, -size / 2, -size / 2, size, size);
+      ctx.restore();
+      // Gun: rotated to match aim direction (independent of body)
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(p.gunAngle + Math.PI / 2);
+      ctx.drawImage(sprites.gun, -size / 2, -size / 2, size, size);
+      ctx.restore();
+    } else {
+      // Fallback: colored dot (used while sprites are loading or if load failed)
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Permanent-powerup indicator: up to 4 colored arc segments around the
+    // player showing which permanents they hold. Each slot represents one
+    // powerup type; filled if held, invisible if not.
+    drawPermanentRing(cx, cy, r, p);
 
     ctx.restore();
+  }
+
+  // Draw small color-coded arcs around the player indicating which permanent
+  // powerups they have. Rendered inside the restore-scope, so the fade-in
+  // alpha applies uniformly.
+  function drawPermanentRing(cx, cy, r, p) {
+    const perms = p.permanentPowerups || {};
+    const held = [];
+    if (perms.bigger)     held.push({ color: '#f97316', key: 'bigger' });   // orange
+    if (perms.faster)     held.push({ color: '#22d3ee', key: 'faster' });   // cyan
+    if (perms.piercing)   held.push({ color: '#e879f9', key: 'piercing' }); // magenta
+    if (perms.doubleshot) held.push({ color: '#facc15', key: 'doubleshot' }); // yellow
+    if (held.length === 0) return;
+    const ringR = r * 1.6;
+    const arcSize = (Math.PI * 2) / 4;        // always 4 slots, one per powerup type
+    const gap = arcSize * 0.15;               // small gap between arcs
+    ctx.lineWidth = Math.max(2, r * 0.25);
+    ctx.lineCap = 'butt';
+    for (let i = 0; i < held.length; i++) {
+      const a0 = -Math.PI / 2 + i * arcSize + gap / 2;
+      const a1 = a0 + arcSize - gap;
+      ctx.strokeStyle = held[i].color;
+      ctx.beginPath();
+      ctx.arc(cx, cy, ringR, a0, a1);
+      ctx.stroke();
+    }
   }
 
   function draw() {
@@ -3875,6 +4669,7 @@
     // Power-up star (above enemies so it stays visible)
     drawPowerup();
     drawNuke();
+    drawPermanentStars();
 
     // Yellow wall-wave dots (boss mode) — above projectiles so obstacles are obvious
     drawYellowDots();
@@ -4061,8 +4856,8 @@
         audio.stop();
         players = []; enemies = []; particles = []; projectiles = []; portal = null;
         vortexes = []; slowfires = []; walls = []; windmill = null; powerup = null; nuke = null; toasts = [];
-        boss = null; yellowDots = [];
-        gameMode = 'normal'; currentBossIndex = 0; bossDefeatedCount = 0;
+        boss = null; yellowDots = []; permanentStars = [];
+        gameMode = 'normal'; isMiniBoss = false; currentBossIndex = 0; bossDefeatedCount = 0;
         totalKills = 0; nextNukeAt = NUKE_KILL_THRESHOLD;
         tagCounts = {}; activeTags = new Set();
         updateTagsHud();
@@ -4074,8 +4869,8 @@
         audio.stop();
         players = []; enemies = []; particles = []; projectiles = []; portal = null;
         vortexes = []; slowfires = []; walls = []; windmill = null; powerup = null; nuke = null; toasts = [];
-        boss = null; yellowDots = [];
-        gameMode = 'normal'; currentBossIndex = 0; bossDefeatedCount = 0;
+        boss = null; yellowDots = []; permanentStars = [];
+        gameMode = 'normal'; isMiniBoss = false; currentBossIndex = 0; bossDefeatedCount = 0;
         totalKills = 0; nextNukeAt = NUKE_KILL_THRESHOLD;
         tagCounts = {}; activeTags = new Set();
         updateTagsHud();
@@ -4092,9 +4887,225 @@
     }
   }
 
+  // ---------- On-screen keyboard for name entry ----------
+  // Controller-navigable A-Z / 0-9 grid with DEL and two 4-char name slots.
+  // Supports both 1P (single 4-char name) and 2P (two 4-char names, auto-
+  // advance between slots). The DOM has two identical grids (#osk-grid-1p
+  // and #osk-grid-2p) which share this logic.
+
+  const OSK_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'; // 36 chars, fits 9x4 grid
+  const OSK_COLS = 9;
+  // Layout: 36 chars across 4 rows of 9, then a 5th row with "DEL" (wide key).
+  const OSK_SPECIAL_ROW = 4; // row index for DEL
+
+  // Shared state across both OSK screens. `active` selects which slot group
+  // is being filled in 2P mode.
+  const oskState = {
+    row: 0,
+    col: 0,
+    names: { '1p': [''], '2p': ['', ''] },
+    activeNameIndex: 0, // for 2P: 0 = P1 slot, 1 = P2 slot
+  };
+
+  function buildOskGrid(gridEl) {
+    gridEl.innerHTML = '';
+    // 36 char keys
+    for (let i = 0; i < OSK_CHARS.length; i++) {
+      const key = document.createElement('button');
+      key.className = 'osk-key';
+      key.textContent = OSK_CHARS[i];
+      key.dataset.char = OSK_CHARS[i];
+      key.addEventListener('click', () => oskPickChar(OSK_CHARS[i]));
+      gridEl.appendChild(key);
+    }
+    // DEL spans 2 columns; offset to center visually on the 5th row
+    const del = document.createElement('button');
+    del.className = 'osk-key wide';
+    del.textContent = 'DEL';
+    del.dataset.special = 'del';
+    del.style.gridColumn = '4 / span 2'; // centered in 9-col grid
+    del.addEventListener('click', () => oskDelete());
+    gridEl.appendChild(del);
+  }
+
+  function getCurrentOskName() {
+    const mode = state === 'highscore-2p' ? '2p' : '1p';
+    if (mode === '2p') return oskState.names['2p'][oskState.activeNameIndex] || '';
+    return oskState.names['1p'][0] || '';
+  }
+
+  function setCurrentOskName(value) {
+    const mode = state === 'highscore-2p' ? '2p' : '1p';
+    if (mode === '2p') oskState.names['2p'][oskState.activeNameIndex] = value;
+    else oskState.names['1p'][0] = value;
+  }
+
+  function oskPickChar(ch) {
+    const cur = getCurrentOskName();
+    if (cur.length >= 4) {
+      // In 2P, jump to the second slot automatically when the first fills
+      if (state === 'highscore-2p' && oskState.activeNameIndex === 0) {
+        oskState.activeNameIndex = 1;
+        // Fall through and insert into the new slot
+      } else {
+        return;
+      }
+    }
+    const next = (getCurrentOskName() + ch).slice(0, 4);
+    setCurrentOskName(next);
+    updateOskPreview();
+    updateOskSubmitState();
+    // Auto-advance from P1 → P2 once P1 is complete
+    if (state === 'highscore-2p' && oskState.activeNameIndex === 0 && next.length === 4) {
+      oskState.activeNameIndex = 1;
+      updateOskPreview();
+    }
+  }
+
+  function oskDelete() {
+    const cur = getCurrentOskName();
+    if (cur.length === 0) {
+      // In 2P, backspace from P2 slot returns to editing P1
+      if (state === 'highscore-2p' && oskState.activeNameIndex === 1) {
+        oskState.activeNameIndex = 0;
+        updateOskPreview();
+        updateOskSubmitState();
+      }
+      return;
+    }
+    setCurrentOskName(cur.slice(0, -1));
+    updateOskPreview();
+    updateOskSubmitState();
+  }
+
+  function updateOskPreview() {
+    const mode = state === 'highscore-2p' ? '2p' : '1p';
+    if (mode === '1p') {
+      const slots = document.querySelectorAll('#osk-preview-1p .slot');
+      const name = oskState.names['1p'][0] || '';
+      slots.forEach((s, i) => {
+        s.textContent = name[i] || '';
+        s.classList.toggle('active', i === name.length && name.length < 4);
+      });
+    } else {
+      const slots = document.querySelectorAll('#osk-preview-2p .slot');
+      const n1 = oskState.names['2p'][0] || '';
+      const n2 = oskState.names['2p'][1] || '';
+      // First 4 slots belong to P1, next 4 to P2 (data-p attribute confirms this)
+      slots.forEach((s, i) => {
+        const playerIdx = i < 4 ? 0 : 1;
+        const name = playerIdx === 0 ? n1 : n2;
+        const localIdx = i % 4;
+        s.textContent = name[localIdx] || '';
+        // Highlight the next empty slot for the active name
+        const isActive = playerIdx === oskState.activeNameIndex
+          && localIdx === name.length
+          && name.length < 4;
+        s.classList.toggle('active', isActive);
+      });
+    }
+  }
+
+  function updateOskSubmitState() {
+    if (state === 'highscore') {
+      const name = oskState.names['1p'][0] || '';
+      document.getElementById('submitScoreBtn').disabled = name.length !== 4;
+      updateFocusHighlight();
+    } else if (state === 'highscore-2p') {
+      const n1 = oskState.names['2p'][0] || '';
+      const n2 = oskState.names['2p'][1] || '';
+      document.getElementById('submitScoreBtn2P').disabled = !(n1.length === 4 && n2.length === 4);
+      updateFocusHighlight();
+    }
+  }
+
+  // Current OSK grid + total rows (4 char rows + 1 special row)
+  function getCurrentOskGrid() {
+    return document.getElementById(state === 'highscore-2p' ? 'osk-grid-2p' : 'osk-grid-1p');
+  }
+
+  // Update the visual highlighting on the OSK grid
+  function updateOskHighlight() {
+    const grid = getCurrentOskGrid();
+    if (!grid) return;
+    grid.querySelectorAll('.osk-key.focused').forEach(k => k.classList.remove('focused'));
+    const key = getOskKeyAt(oskState.row, oskState.col);
+    if (key) key.classList.add('focused');
+  }
+
+  function getOskKeyAt(row, col) {
+    const grid = getCurrentOskGrid();
+    if (!grid) return null;
+    if (row < OSK_SPECIAL_ROW) {
+      const idx = row * OSK_COLS + col;
+      if (idx < OSK_CHARS.length) return grid.children[idx]; // chars first
+      return null;
+    }
+    // Special row: DEL is the last child
+    return grid.querySelector('[data-special="del"]');
+  }
+
+  // Navigate the grid with clamp-to-edge. DEL row is navigable but only has
+  // one key, so any horizontal input on row 4 stays on DEL.
+  function handleOskInput(dir) {
+    switch (dir) {
+      case 'up':
+        if (oskState.row > 0) {
+          oskState.row -= 1;
+          // When moving up from DEL row, land on the closest char
+          if (oskState.row === OSK_SPECIAL_ROW - 1) {
+            oskState.col = Math.min(oskState.col, OSK_COLS - 1);
+          }
+        }
+        break;
+      case 'down':
+        if (oskState.row < OSK_SPECIAL_ROW) oskState.row += 1;
+        break;
+      case 'left':
+        if (oskState.row < OSK_SPECIAL_ROW && oskState.col > 0) oskState.col -= 1;
+        break;
+      case 'right':
+        if (oskState.row < OSK_SPECIAL_ROW && oskState.col < OSK_COLS - 1) oskState.col += 1;
+        break;
+      case 'select': {
+        const key = getOskKeyAt(oskState.row, oskState.col);
+        if (!key) return;
+        if (key.dataset.special === 'del') oskDelete();
+        else if (key.dataset.char) oskPickChar(key.dataset.char);
+        break;
+      }
+      case 'delete':
+        oskDelete();
+        break;
+    }
+    updateOskHighlight();
+  }
+
+  // Reset OSK when entering a high-score screen
+  function resetOskForState(s) {
+    if (s === 'highscore') {
+      oskState.names['1p'] = [''];
+      oskState.row = 0;
+      oskState.col = 0;
+      buildOskGrid(document.getElementById('osk-grid-1p'));
+      updateOskPreview();
+      updateOskSubmitState();
+      updateOskHighlight();
+    } else if (s === 'highscore-2p') {
+      oskState.names['2p'] = ['', ''];
+      oskState.activeNameIndex = 0;
+      oskState.row = 0;
+      oskState.col = 0;
+      buildOskGrid(document.getElementById('osk-grid-2p'));
+      updateOskPreview();
+      updateOskSubmitState();
+      updateOskHighlight();
+    }
+  }
+
+  // Submit score reads from oskState instead of input.value
   async function submitScore() {
-    const input = document.getElementById('nameInput');
-    const name = input.value.toUpperCase().trim();
+    const name = (oskState.names['1p'][0] || '').toUpperCase().trim();
     if (name.length !== 4) return;
     await leaderboardSolo.addEntry({ name, level: lastRunLevel });
     finalLevelEl.textContent = 'LVL ' + lastRunLevel;
@@ -4102,10 +5113,8 @@
   }
 
   async function submitScore2P() {
-    const i1 = document.getElementById('nameInput1');
-    const i2 = document.getElementById('nameInput2');
-    const n1 = i1.value.toUpperCase().trim();
-    const n2 = i2.value.toUpperCase().trim();
+    const n1 = (oskState.names['2p'][0] || '').toUpperCase().trim();
+    const n2 = (oskState.names['2p'][1] || '').toUpperCase().trim();
     if (n1.length !== 4 || n2.length !== 4) return;
     await leaderboardCoop.addEntry({ name1: n1, name2: n2, level: lastRunLevel });
     finalLevelEl.textContent = 'LVL ' + lastRunLevel;
@@ -4119,23 +5128,32 @@
   // ---------- Keyboard ----------
   window.addEventListener('keydown', e => {
     const k = e.key.toLowerCase();
-    if (state === 'highscore') {
+    if (state === 'highscore' || state === 'highscore-2p') {
+      // Arrow keys navigate the OSK, Enter submits if valid (otherwise picks)
+      if (e.key === 'ArrowUp')    { handleOskInput('up');    e.preventDefault(); return; }
+      if (e.key === 'ArrowDown')  { handleOskInput('down');  e.preventDefault(); return; }
+      if (e.key === 'ArrowLeft')  { handleOskInput('left');  e.preventDefault(); return; }
+      if (e.key === 'ArrowRight') { handleOskInput('right'); e.preventDefault(); return; }
+      if (e.key === 'Backspace')  { oskDelete(); e.preventDefault(); return; }
       if (e.key === 'Enter') {
         e.preventDefault();
-        if (!document.getElementById('submitScoreBtn').disabled) submitScore();
+        const btnId = state === 'highscore' ? 'submitScoreBtn' : 'submitScoreBtn2P';
+        const btn = document.getElementById(btnId);
+        if (!btn.disabled) {
+          if (state === 'highscore') submitScore(); else submitScore2P();
+        } else {
+          // Enter doubles as "pick the focused OSK key" while typing
+          handleOskInput('select');
+        }
+        return;
       }
-      return;
-    }
-    if (state === 'highscore-2p') {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const i1 = document.getElementById('nameInput1');
-        const i2 = document.getElementById('nameInput2');
-        // Tab-like: Enter on input 1 jumps to input 2; Enter on input 2 submits if ready
-        if (document.activeElement === i1 && i1.value.length === 4) {
-          i2.focus();
-        } else if (!document.getElementById('submitScoreBtn2P').disabled) {
-          submitScore2P();
+      // A-Z / 0-9 direct input for users on keyboards
+      if (e.key.length === 1) {
+        const ch = e.key.toUpperCase();
+        if (/[A-Z0-9]/.test(ch)) {
+          oskPickChar(ch);
+          e.preventDefault();
+          return;
         }
       }
       return;
@@ -4170,36 +5188,6 @@
   });
   window.addEventListener('mouseup', e => { if (e.button === 0) mouse.down = false; });
   canvas.addEventListener('contextmenu', e => e.preventDefault());
-
-  // ---------- Name input ----------
-  const nameInput = document.getElementById('nameInput');
-  const submitBtn = document.getElementById('submitScoreBtn');
-  nameInput.addEventListener('input', () => {
-    nameInput.value = nameInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
-    submitBtn.disabled = nameInput.value.length !== 4;
-    if (state === 'highscore') updateFocusHighlight();
-  });
-
-  // 2P name inputs
-  const nameInput1 = document.getElementById('nameInput1');
-  const nameInput2 = document.getElementById('nameInput2');
-  const submitBtn2P = document.getElementById('submitScoreBtn2P');
-  function refresh2PSubmit() {
-    submitBtn2P.disabled = nameInput1.value.length !== 4 || nameInput2.value.length !== 4;
-    if (state === 'highscore-2p') updateFocusHighlight();
-  }
-  nameInput1.addEventListener('input', () => {
-    nameInput1.value = nameInput1.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
-    refresh2PSubmit();
-    // Auto-advance to the second input once P1's name is complete
-    if (nameInput1.value.length === 4 && document.activeElement === nameInput1) {
-      nameInput2.focus();
-    }
-  });
-  nameInput2.addEventListener('input', () => {
-    nameInput2.value = nameInput2.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
-    refresh2PSubmit();
-  });
 
   // ---------- Settings wire-up ----------
   const volMain = document.getElementById('vol-main');
